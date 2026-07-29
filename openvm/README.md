@@ -15,8 +15,8 @@ zesu.o          — EVM + stateless execution logic (from zesu/core)
 
 openvm-host.o   — All platform symbols:
                     openvm_host.zig  pure-Zig / std.crypto accelerators,
-                                     hint-stream IO, TERMINATE exit,
-                                     bump heap vars + init
+                                     hint-stream IO, bump heap vars + init
+                    startup.S        _start, TERMINATE exit (see below)
 ```
 
 Unlike the ZisK build, no partial link step is needed: OpenVM has no external
@@ -30,12 +30,18 @@ _start           (startup.S)
   li sp, 0x00200400
   call openvm_init_heap   — sets ZKVM_BUMP_HEAP_POS / ZKVM_BUMP_HEAP_TOP
   call main
+  branch on a0 (main's return value) to the matching TERMINATE immediate
 
 main()           (zesu.o / zesu/src/zkvm/root.zig, Zig, export fn)
   calls runner.runStateless(bump_allocator)
   writes SSZ output via write_output (REVEAL instructions)
-  calls zkvm_exit(0 or 1)
+  returns 0 (success) or 1 (guestMain() error) — no explicit halt call
 ```
+
+`main()` has no way to pass a runtime value as TERMINATE's immediate (it's
+encoded directly into the instruction, not a register operand), so the
+branch-and-halt lives entirely in `startup.S` — the one file that already
+has to speak OpenVM's non-standard opcode regardless of guest language.
 
 ### Symbol ownership
 
@@ -54,7 +60,7 @@ main()           (zesu.o / zesu/src/zkvm/root.zig, Zig, export fn)
 | `read_input`                                               | `openvm_host.zig` | hint-stream (hintInput + hintBufferChunked) |
 | `write_output`                                             | `openvm_host.zig` | REVEAL instructions (funct3=2, opcode 0x0b) |
 | `zkvm_log`                                                 | `openvm_host.zig` | print_str phantom (funct3=3, imm=1) |
-| `zkvm_exit`                                                | `openvm_host.zig` | TERMINATE instruction (funct3=0, opcode 0x0b) |
+| exit (TERMINATE, funct3=0, opcode 0x0b)                    | `startup.S` | branch on `main()`'s a0 return value |
 | `ZKVM_BUMP_HEAP_POS`, `ZKVM_BUMP_HEAP_TOP`                 | `openvm_host.zig` | BSS vars; initialized by `openvm_init_heap` from `_end` |
 | `openvm_init_heap`                                         | `openvm_host.zig` | called by `_start` before `main` |
 

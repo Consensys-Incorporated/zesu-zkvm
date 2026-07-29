@@ -3,9 +3,13 @@
 /// Exports:
 ///   read_input / write_output          — zkvm-standards io-interface
 ///   zkvm_keccak256 ... zkvm_secp256r1_verify — all 19 accelerators
-///   zkvm_log / zkvm_exit               — runtime
+///   zkvm_log                           — runtime
 ///   ZKVM_HEAP_POS / ZKVM_HEAP_TOP — heap region vars
 ///   openvm_init_heap                   — called by startup.S before main()
+///
+/// Halt/exit is NOT handled here: main() (zesu.o) returns its status in a0;
+/// startup.S branches on a0 to emit OpenVM's TERMINATE instruction directly,
+/// so no exit routine or inline asm lives in this file.
 ///
 /// Accelerator implementations delegate to stdlibs_accel.zig (accel_impl import):
 ///   keccak256, sha256, ecrecover, secp256k1_verify — functional (std.crypto)
@@ -40,18 +44,6 @@ export fn zkvm_log(level: u8, msg_ptr: [*]const u8, msg_len: usize) void {
     _ = level;
     io.printStr(msg_ptr[0..msg_len]);
     io.printStr("\n");
-}
-
-/// Halt via OpenVM's TERMINATE instruction (opcode 0x0b, funct3=0, imm=exit_code).
-/// The immediate is part of the instruction encoding and must be comptime, so we
-/// branch on the two expected values: 0 (success) and 1 (failure).
-export fn zkvm_exit(code: i32) noreturn {
-    if (code == 0) {
-        asm volatile (".insn i 0x0b, 0, x0, x0, 0" ::: .{ .memory = true });
-    } else {
-        asm volatile (".insn i 0x0b, 0, x0, x0, 1" ::: .{ .memory = true });
-    }
-    unreachable;
 }
 
 // ── IO — zkvm-standards io-interface ─────────────────────────────────────────
