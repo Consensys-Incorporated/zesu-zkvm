@@ -11,6 +11,12 @@ name: Release
 #   zisk    — ZisK v1.0.0-alpha; links zesu.o + zisk-wrapped.o (host + libziskos_staticlib merged)
 #   openvm  — OpenVM rv64im; links zesu.o + openvm-host.o
 #   linea   — Linea rv64im; links zesu.o + linea-host.o; stripped ELF
+#
+# Release asset naming: stateless-validator-<guestName>-<zkVMName>-<zkVMVersion>.elf
+# (and matching .vk once verification-key generation is wired up). OpenVM and Linea
+# have no pinned upstream zkVM release to cite yet — both guests reimplement the
+# target ABI directly rather than linking a versioned upstream crate — so their
+# version segment is the placeholder "ALPHA" until a real upstream version exists.
 
 on:
   workflow_dispatch:
@@ -27,6 +33,8 @@ on:
 
 env:
   ZISK_VERSION: "1.0.0-alpha"
+  OPENVM_VERSION: "ALPHA"
+  LINEA_VERSION: "ALPHA"
 
 permissions:
   contents: write
@@ -101,7 +109,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: stateless-validator-zesu-zisk
+          name: stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}
           path: zisk/zig-out/bin/zesu-zisk
           if-no-files-found: error
 
@@ -135,7 +143,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: stateless-validator-zesu-openvm
+          name: stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}
           path: openvm/zig-out/bin/zesu-openvm
           if-no-files-found: error
 
@@ -169,7 +177,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: stateless-validator-zesu-linea
+          name: stateless-validator-zesu-linea-${{ env.LINEA_VERSION }}
           path: linea/zig-out/bin/zesu-linea
           if-no-files-found: error
 
@@ -187,9 +195,9 @@ jobs:
 
       - name: Rename artifacts
         run: |
-          mv artifacts/zesu-zisk   artifacts/stateless-validator-zesu-zisk.elf
-          mv artifacts/zesu-openvm artifacts/stateless-validator-zesu-openvm.elf
-          mv artifacts/zesu-linea  artifacts/stateless-validator-zesu-linea.elf
+          mv artifacts/zesu-zisk   "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.elf"
+          mv artifacts/zesu-openvm "artifacts/stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}.elf"
+          mv artifacts/zesu-linea  "artifacts/stateless-validator-zesu-linea-${{ env.LINEA_VERSION }}.elf"
 
       - name: Create draft GitHub Release
         env:
@@ -200,6 +208,6 @@ jobs:
             --title "${{ inputs.release_tag }}" \
             --notes "Built against zesu ${{ inputs.zesu_version || 'latest' }}" \
             --draft \
-            artifacts/stateless-validator-zesu-zisk.elf \
-            artifacts/stateless-validator-zesu-openvm.elf \
-            artifacts/stateless-validator-zesu-linea.elf
+            "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.elf" \
+            "artifacts/stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}.elf" \
+            "artifacts/stateless-validator-zesu-linea-${{ env.LINEA_VERSION }}.elf"
