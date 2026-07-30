@@ -13,10 +13,24 @@ name: Release
 #   linea   — Linea rv64im; links zesu.o + linea-host.o; stripped ELF
 #
 # Release asset naming: stateless-validator-<guestName>-<zkVMName>-<zkVMVersion>.elf
-# (and matching .vk once verification-key generation is wired up). OpenVM and Linea
-# have no pinned upstream zkVM release to cite yet — both guests reimplement the
-# target ABI directly rather than linking a versioned upstream crate — so their
-# version segment is the placeholder "ALPHA" until a real upstream version exists.
+# OpenVM and Linea have no pinned upstream zkVM release to cite yet — both guests
+# reimplement the target ABI directly rather than linking a versioned upstream
+# crate — so their version segment is the placeholder "ALPHA" until a real
+# upstream version exists.
+#
+# Verification keys (.vk): generated only for ZisK, via ere-server-zisk's
+# `keygen` (a zkVM-specific commitment to the compiled ELF — see ere at
+# https://github.com/eth-act/ere). Not generated for:
+#   - OpenVM: its real proving machine is RV32IM, but zesu-zkvm's OpenVM guest
+#     is built as riscv64-freestanding-none — ere-server-openvm rejects the ELF
+#     outright ("not a 32-bit ELF"). This is a target-architecture mismatch,
+#     not a CI gap; fixing it is a separate, larger task.
+#   - Linea: no ere support exists for it at all — Linea's zkc/go-corset
+#     arithmetization checker has no per-guest "verification key" concept the
+#     way SP1/ZisK/OpenVM do.
+# All three ELFs are still signed below regardless — signing is a generic,
+# zkVM-agnostic operation (minisign over whatever bytes we produce) and
+# doesn't depend on a zkVM having a VK concept at all.
 
 on:
   workflow_dispatch:
@@ -35,6 +49,10 @@ env:
   ZISK_VERSION: "1.0.0-alpha"
   OPENVM_VERSION: "ALPHA"
   LINEA_VERSION: "ALPHA"
+  # ere (https://github.com/eth-act/ere) revision whose ere-server-* images we
+  # pull for VK generation. Keep in sync with the rev ere-guests pins for
+  # ere-platform-core (see its Cargo.lock) — bump when they bump.
+  ERE_TAG: "58ca85b"
 
 permissions:
   contents: write
@@ -106,13 +124,37 @@ jobs:
         working-directory: zisk
         run: zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o
 
+      - name: Free up disk space for ere-server-zisk image
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet           # remove dotnet
+          sudo rm -rf /usr/local/lib/android       # remove android
+          sudo rm -rf /opt/ghc /usr/local/.ghcup   # remove haskell
+          sudo rm -rf /opt/hostedtoolcache         # remove codeql
+          df -h /
+
+      - name: Generate program VK
+        run: |
+          docker pull "ghcr.io/eth-act/ere/ere-server-zisk:${{ env.ERE_TAG }}"
+          docker run --rm \
+            -v "${{ github.workspace }}/zisk/zig-out/bin:/output" \
+            "ghcr.io/eth-act/ere/ere-server-zisk:${{ env.ERE_TAG }}" \
+            --elf-path /output/zesu-zisk \
+            keygen \
+            --program-vk-path /output/zesu-zisk.vk
+
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}
-          path: zisk/zig-out/bin/zesu-zisk
+          path: |
+            zisk/zig-out/bin/zesu-zisk
+            zisk/zig-out/bin/zesu-zisk.vk
           if-no-files-found: error
 
+  # No VK step here: ere-server-openvm requires a 32-bit ELF and rejects ours
+  # outright ("not a 32-bit ELF") since this target builds riscv64-freestanding-none
+  # — see the naming-convention comment at the top of this file.
   compile-openvm:
     name: Compile stateless-validator-zesu-openvm
     runs-on: ubuntu-latest
@@ -147,6 +189,9 @@ jobs:
           path: openvm/zig-out/bin/zesu-openvm
           if-no-files-found: error
 
+  # No VK step here: Linea isn't part of the ere ecosystem, and its zkc/go-corset
+  # arithmetization checker has no per-guest "verification key" concept — see the
+  # naming-convention comment at the top of this file.
   compile-linea:
     name: Compile stateless-validator-zesu-linea
     runs-on: ubuntu-latest
@@ -195,9 +240,38 @@ jobs:
 
       - name: Rename artifacts
         run: |
-          mv artifacts/zesu-zisk   "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.elf"
-          mv artifacts/zesu-openvm "artifacts/stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}.elf"
-          mv artifacts/zesu-linea  "artifacts/stateless-validator-zesu-linea-${{ env.LINEA_VERSION }}.elf"
+          mv artifacts/zesu-zisk      "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.elf"
+          mv artifacts/zesu-zisk.vk   "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.vk"
+          mv artifacts/zesu-openvm    "artifacts/stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}.elf"
+          mv artifacts/zesu-linea     "artifacts/stateless-validator-zesu-linea-${{ env.LINEA_VERSION }}.elf"
+
+      - name: Install Minisign
+        run: sudo apt-get update && sudo apt-get install -y minisign
+
+      # Signing is generic and zkVM-agnostic: every release asset gets a detached
+      # minisig regardless of whether that target has a VK. Requires repo secrets
+      # MINISIGN_SECRET_KEY / MINISIGN_PUBLIC_KEY / MINISIGN_PASSWORD (generate a
+      # keypair with `minisign -G` and store it as repo secrets — do not reuse
+      # another project's key).
+      - name: Sign artifacts
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+          MINISIGN_PUBLIC_KEY: ${{ secrets.MINISIGN_PUBLIC_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+        run: |
+          echo "$MINISIGN_SECRET_KEY" > minisign.key
+          echo "$MINISIGN_PUBLIC_KEY" > minisign.pub
+
+          for file in artifacts/*; do
+            [ -f "$file" ] || continue
+            filename=$(basename "$file")
+            echo "Signing $filename..."
+            # -S: sign, -m: file, -s: secret key, -x: output signature, -t: trusted comment
+            echo "$MINISIGN_PASSWORD" | minisign -Sm "$file" -s minisign.key -x "$file.minisig" -t "$filename"
+          done
+
+          cp minisign.pub artifacts/
+          rm minisign.key
 
       - name: Create draft GitHub Release
         env:
@@ -208,6 +282,4 @@ jobs:
             --title "${{ inputs.release_tag }}" \
             --notes "Built against zesu ${{ inputs.zesu_version || 'latest' }}" \
             --draft \
-            "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.elf" \
-            "artifacts/stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}.elf" \
-            "artifacts/stateless-validator-zesu-linea-${{ env.LINEA_VERSION }}.elf"
+            artifacts/*
