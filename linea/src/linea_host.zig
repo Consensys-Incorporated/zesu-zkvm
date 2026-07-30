@@ -3,9 +3,13 @@
 /// Exports:
 ///   read_input / write_output          — zkvm-standards io-interface
 ///   zkvm_keccak256 ... zkvm_secp256r1_verify — all 19 accelerators
-///   zkvm_log / zkvm_exit               — runtime
+///   zkvm_log                           — runtime
 ///   ZKVM_HEAP_POS / ZKVM_HEAP_TOP — heap region vars
 ///   linea_init_heap                    — called by startup.S before main()
+///
+/// Halt/exit is NOT handled here: main() (zesu.o) returns its status in a0,
+/// which startup.S passes straight through to the exit(93) ecall, so no
+/// exit routine or inline asm lives in this file.
 ///
 /// Accelerators delegate to linea_accel.zig (pure-Zig / std.crypto):
 ///   keccak256, sha256, ecrecover, secp256k1_verify — functional
@@ -40,20 +44,6 @@ export fn zkvm_log(level: u8, msg_ptr: [*]const u8, msg_len: usize) void {
     _ = level;
     io.printStr(msg_ptr[0..msg_len]);
     io.printStr("\n");
-}
-
-/// Halt via Linux exit ecall (a7=93). Identical to zisk_host.zig.
-export fn zkvm_exit(code: i32) noreturn {
-    asm volatile (
-        \\ ecall
-        \\ .align 4
-        :
-        : [code] "{a0}" (code),
-          [syscall] "{a7}" (@as(u32, 93)),
-        : .{ .memory = true });
-    while (true) {
-        asm volatile ("wfi");
-    }
 }
 
 // ── IO — zkvm-standards io-interface ─────────────────────────────────────────

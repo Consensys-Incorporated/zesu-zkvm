@@ -1,8 +1,13 @@
 /// ZisK host object: satisfies all extern symbol references in zesu.rv64im.o
 ///
 /// Exports:
-///   zkvm_log / zkvm_exit             — runtime (UART + ecall)
-///   sys_read                         — Rust std stdin stub
+///   zkvm_log                         — runtime (UART)
+///
+/// zesu.o's main() returns its status code (0/1) in a0 per the RISC-V C ABI
+/// instead of calling an explicit halt function. libziskos_staticlib.a's own
+/// _start (vendor Rust code) performs the actual exit(93) ecall automatically
+/// once _zisk_main/main() returns, with a0 passed through untouched — so no
+/// halt/exit routine, and no inline assembly, is needed in this file at all.
 ///
 /// Symbols provided by libziskos_staticlib.a at link time (NOT exported here):
 ///   read_input / write_output        — zkvm-standards io-interface
@@ -20,26 +25,4 @@ export fn zkvm_log(level: u8, msg_ptr: [*]const u8, msg_len: usize) void {
         ZISK_UART.* = byte;
     }
     ZISK_UART.* = '\n';
-}
-
-/// Halt/exit: Linux syscall 93 (exit) via ecall.
-export fn zkvm_exit(code: i32) noreturn {
-    asm volatile (
-        \\ ecall
-        \\ .align 4
-        :
-        : [code] "{a0}" (code),
-          [syscall] "{a7}" (@as(u32, 93)),
-        : .{ .memory = true });
-    while (true) {
-        asm volatile ("wfi");
-    }
-}
-
-/// Rust std's zkvm Stdin calls this — no stdin in zkVM, return EOF.
-export fn sys_read(fd: i32, buf: [*]u8, count: usize) isize {
-    _ = fd;
-    _ = buf;
-    _ = count;
-    return 0;
 }
