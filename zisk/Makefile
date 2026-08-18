@@ -30,7 +30,7 @@ ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ))
 .PHONY: all run test bless clean clean-lib
 
 all: $(LIB_OUT)
-	$(ZIG) build $(ZIG_FLAGS)
+	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
 
 $(LIB_OUT):
 	@command -v $(CARGO) >/dev/null 2>&1 || \
@@ -58,31 +58,56 @@ endif
 
 test: $(LIB_OUT)
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
-	@fail=0; \
+	@fail=0; total_steps=0; total_cost=0; total_base=0; total_main=0; total_ops=0; total_precomp=0; total_mem=0; \
 	for bin in ../vectors/*.bin; do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \
+	    metrics=$$(mktemp); \
+	    rc_file=$$(mktemp); \
 	    echo "==> $$name"; \
-	    if ! $(ZISKEMU) -e zig-out/bin/zesu-zisk -i $$bin -o $$out; then \
+	    { $(ZISKEMU) -e zig-out/bin/zesu-zisk -i $$bin -o $$out -m -X -x; echo $$? >$$rc_file; } >$$metrics 2>&1; \
+	    if [ "$$(cat $$rc_file)" != "0" ]; then \
 	        echo "  FAIL: ziskemu non-zero exit"; \
 	        fail=1; \
-	    elif [ -f $$expected ]; then \
-	        got=$$(xxd -p -l 105 $$out | tr -d '\n'); \
-	        want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
-	        if [ "$$got" = "$$want" ]; then \
-	            echo "  OK"; \
-	        else \
-	            echo "  FAIL"; \
-	            echo "    expected: $$want"; \
-	            echo "    got:      $$got"; \
-	            fail=1; \
-	        fi; \
 	    else \
-	        echo "  (no expected.hex — informational)"; \
+	        steps=$$(grep -o 'steps=[0-9]*' $$metrics | head -1 | cut -d= -f2); \
+	        dur=$$(grep -o 'duration=[0-9.]*' $$metrics | head -1 | cut -d= -f2); \
+	        tp=$$(grep -o 'tp=[0-9.]*' $$metrics | head -1 | cut -d= -f2); \
+	        cost=$$(grep 'TOTAL COST:' $$metrics | grep -oE '[0-9]+'); \
+	        base=$$(grep 'BASE COST:' $$metrics | grep -oE '[0-9]+'); \
+	        main=$$(grep 'MAIN COST:' $$metrics | grep -oE '[0-9]+'); \
+	        ops=$$(grep 'OPCODES COST:' $$metrics | grep -oE '[0-9]+'); \
+	        precomp=$$(grep 'PRECOMPILED COST:' $$metrics | grep -oE '[0-9]+'); \
+	        mem=$$(grep 'MEMORY COST:' $$metrics | grep -oE '[0-9]+'); \
+	        total_steps=$$((total_steps + $${steps:-0})); \
+        total_cost=$$((total_cost + $${cost:-0})); \
+        total_base=$$((total_base + $${base:-0})); \
+        total_main=$$((total_main + $${main:-0})); \
+        total_ops=$$((total_ops + $${ops:-0})); \
+        total_precomp=$$((total_precomp + $${precomp:-0})); \
+        total_mem=$$((total_mem + $${mem:-0})); \
+	        echo "  steps=$${steps:-?} dur=$${dur:-?}s tp=$${tp:-?}Mst/s  base=$${base:-?} main=$${main:-?} ops=$${ops:-?} precomp=$${precomp:-?} mem=$${mem:-?} total=$${cost:-?}"; \
+	        if [ -f $$expected ]; then \
+	            got=$$(xxd -p -l 105 $$out | tr -d '\n'); \
+	            want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
+	            success_byte=$$(xxd -p -s 32 -l 1 $$out | tr -d '\n'); \
+	            echo "  success_byte=0x$$success_byte"; \
+	            if [ "$$got" = "$$want" ]; then \
+	                echo "  OK"; \
+	            else \
+	                echo "  FAIL"; \
+	                echo "    expected: $$want"; \
+	                echo "    got:      $$got"; \
+	                fail=1; \
+	            fi; \
+	        else \
+	            echo "  (no expected.hex — informational)"; \
+	        fi; \
 	    fi; \
-	    rm -f $$out; \
+	    rm -f $$out $$metrics $$rc_file; \
 	done; \
+	echo "==> total steps=$$total_steps  base=$$total_base main=$$total_main ops=$$total_ops precomp=$$total_precomp mem=$$total_mem total=$$total_cost"; \
 	exit $$fail
 
 bless: $(LIB_OUT)
