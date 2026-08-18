@@ -22,12 +22,14 @@ LIB_OUT   = lib/libziskos_staticlib.a
 CARGO_OUT = $(ZISK_DIR)/target/$(ZISK_TARGET)/release/lib$(ZISK_LIB).a
 
 ZIG       ?= zig
-ZISKEMU   ?= ziskemu
+# ziskup installs ziskemu into ~/.zisk/bin, which is not on PATH by default —
+# prefer it when present so `make test` works out of the box.
+ZISKEMU   ?= $(if $(wildcard $(HOME)/.zisk/bin/ziskemu),$(HOME)/.zisk/bin/ziskemu,ziskemu)
 ZESU_OBJ  ?=
 
 ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ))
 
-.PHONY: all run test bless clean clean-lib
+.PHONY: all run test bless clean clean-lib check-ziskemu
 
 all: $(LIB_OUT)
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
@@ -56,7 +58,14 @@ ifndef INPUT
 endif
 	$(ZISKEMU) -e zig-out/bin/zesu-zisk -i $(INPUT)
 
-test: $(LIB_OUT)
+# Fail with a usable message instead of one opaque "non-zero exit" per vector.
+check-ziskemu:
+	@command -v $(ZISKEMU) >/dev/null 2>&1 || test -x $(ZISKEMU) || \
+	    { echo "ERROR: ziskemu not found at '$(ZISKEMU)'."; \
+	      echo "       Install it with ziskup, then either add ~/.zisk/bin to PATH"; \
+	      echo "       or pass ZISKEMU=/path/to/ziskemu to make"; exit 1; }
+
+test: $(LIB_OUT) check-ziskemu
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
 	@fail=0; total_steps=0; total_cost=0; total_base=0; total_main=0; total_ops=0; total_precomp=0; total_mem=0; \
 	for bin in ../vectors/*.bin; do \
@@ -68,7 +77,8 @@ test: $(LIB_OUT)
 	    echo "==> $$name"; \
 	    { $(ZISKEMU) -e zig-out/bin/zesu-zisk -i $$bin -o $$out -m -X -x; echo $$? >$$rc_file; } >$$metrics 2>&1; \
 	    if [ "$$(cat $$rc_file)" != "0" ]; then \
-	        echo "  FAIL: ziskemu non-zero exit"; \
+	        echo "  FAIL: ziskemu exited $$(cat $$rc_file)"; \
+	        sed 's/^/    /' $$metrics | tail -20; \
 	        fail=1; \
 	    else \
 	        steps=$$(grep -o 'steps=[0-9]*' $$metrics | head -1 | cut -d= -f2); \
@@ -89,7 +99,7 @@ test: $(LIB_OUT)
         total_mem=$$((total_mem + $${mem:-0})); \
 	        echo "  steps=$${steps:-?} dur=$${dur:-?}s tp=$${tp:-?}Mst/s  base=$${base:-?} main=$${main:-?} ops=$${ops:-?} precomp=$${precomp:-?} mem=$${mem:-?} total=$${cost:-?}"; \
 	        if [ -f $$expected ]; then \
-	            got=$$(xxd -p -l 105 $$out | tr -d '\n'); \
+	            got=$$(xxd -p -l 43 $$out | tr -d '\n'); \
 	            want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
 	            success_byte=$$(xxd -p -s 32 -l 1 $$out | tr -d '\n'); \
 	            echo "  success_byte=0x$$success_byte"; \
@@ -110,14 +120,14 @@ test: $(LIB_OUT)
 	echo "==> total steps=$$total_steps  base=$$total_base main=$$total_main ops=$$total_ops precomp=$$total_precomp mem=$$total_mem total=$$total_cost"; \
 	exit $$fail
 
-bless: $(LIB_OUT)
+bless: $(LIB_OUT) check-ziskemu
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
 	@for bin in ../vectors/*.bin; do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \
 	    $(ZISKEMU) -e zig-out/bin/zesu-zisk -i $$bin -o $$out; \
-	    xxd -p -l 105 $$out | tr -d '\n' > $$expected; \
+	    xxd -p -l 43 $$out | tr -d '\n' > $$expected; \
 	    echo "wrote $$expected"; \
 	    rm -f $$out; \
 	done

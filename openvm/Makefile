@@ -47,7 +47,7 @@ test: runner
 	        echo "  FAIL: runner non-zero exit"; \
 	        fail=1; \
 	    elif [ -f $$expected ]; then \
-	        got=$$(xxd -p -l 105 $$out | tr -d '\n'); \
+	        got=$$(xxd -p -l 43 $$out | tr -d '\n'); \
 	        want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
 	        if [ "$$got" = "$$want" ]; then \
 	            echo "  OK"; \
@@ -71,7 +71,7 @@ bless: runner
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \
 	    $(RUNNER) -e $(ELF) -i $$bin -o $$out; \
-	    xxd -p -l 105 $$out | tr -d '\n' > $$expected; \
+	    xxd -p -l 43 $$out | tr -d '\n' > $$expected; \
 	    echo "wrote $$expected"; \
 	    rm -f $$out; \
 	done
