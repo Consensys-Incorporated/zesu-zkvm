@@ -19,6 +19,11 @@ ZIG       ?= zig
 RUNNER    = runner/target/release/zesu-openvm-runner
 ELF       = zig-out/bin/zesu-openvm
 
+# Bytes of SszStatelessValidationResult to compare: the zkevm@v0.8.0 flat layout
+# is root(32) + valid(1) + chain_id(8) + schema_id(2). Must agree with
+# SSZ_OUTPUT_LEN in openvm/runner/src/main.rs.
+SSZ_OUTPUT_LEN ?= 43
+
 .PHONY: all runner run test bless clean clean-runner
 
 all: runner
@@ -47,7 +52,7 @@ test: runner
 	        echo "  FAIL: runner non-zero exit"; \
 	        fail=1; \
 	    elif [ -f $$expected ]; then \
-	        got=$$(xxd -p -l 43 $$out | tr -d '\n'); \
+	        got=$$(xxd -p -l $(SSZ_OUTPUT_LEN) $$out | tr -d '\n'); \
 	        want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
 	        if [ "$$got" = "$$want" ]; then \
 	            echo "  OK"; \
@@ -71,7 +76,7 @@ bless: runner
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \
 	    $(RUNNER) -e $(ELF) -i $$bin -o $$out; \
-	    xxd -p -l 43 $$out | tr -d '\n' > $$expected; \
+	    xxd -p -l $(SSZ_OUTPUT_LEN) $$out | tr -d '\n' > $$expected; \
 	    echo "wrote $$expected"; \
 	    rm -f $$out; \
 	done
