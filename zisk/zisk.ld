@@ -1,6 +1,7 @@
 /* Linker script for Zisk zkVM (v1.1.0-alpha memory map)
- * ROM: 0x80000000 - 0x87FFFFFF (128MB) - code and read-only data
- *      Note: 0x87F00000-0x87FFFFFF (last 1MB) reserved for float library
+ * ROM: 0x80000000 - 0x87F00000 (127MB) - code and read-only data
+ *      Ends BEFORE FLOAT_LIB_ROM_ADDR (0x87F00000, the last 1MB of the 128MB
+ *      ROM window), which ziskemu reserves for the float library's code.
  *
  * ZisK system regions (NOT mapped here — managed by ziskemu). Mirrors upstream
  * ziskbuild/zisk_linker_script.ld; constants in zisk/core/src/mem.rs:
@@ -29,7 +30,11 @@ ENTRY(_start)
 
 MEMORY
 {
-    ROM (rx)  : ORIGIN = 0x80000000, LENGTH = 0x08000000
+    /* Both regions stop short of the float library's reserved windows:
+     * ROM ends at FLOAT_LIB_ROM_ADDR (0x87f00000), RAM at FLOAT_LIB_RAM_ADDR
+     * (0xbfff0000). Excluding them here means an overrun fails the link rather
+     * than silently colliding with the float library at runtime. */
+    ROM (rx)  : ORIGIN = 0x80000000, LENGTH = 0x07F00000
     RAM (rw)  : ORIGIN = 0xa0430000, LENGTH = 0x1FBC0000
 }
 
@@ -118,8 +123,17 @@ SECTIONS
      * buffer in its own .bss — deliberately, so that ziskos's allocations stay
      * independent of the host application that owns the linker script. Sharing
      * that 8 MiB with zesu silently exhausts it on any real block (a mainnet
-     * block's working set is hundreds of MiB); sysAllocAligned then returns
-     * null and ReleaseFast turns the unchecked failures into null derefs.
+     * block's working set is hundreds of MiB, and the SSZ input alone is ~6 MiB).
+     *
+     * Exhaustion does NOT surface as a clean OOM, which is what makes this so
+     * expensive to debug. sysAllocAligned returns null, and zesu then fails two
+     * ways: parts of the MPT layer swallow the error (src/stateless/mpt/main.zig
+     * "decodeNode(...) catch null") and skip trie canonicalization, yielding a
+     * silently WRONG state root; elsewhere the failure reaches an unchecked
+     * pointer and ziskemu panics reading "addr = 0 + struct_offset", so the crash
+     * site moves with the workload and looks like memory corruption. Confirmed by
+     * A/B test: restoring the alias while keeping a correct stack reproduces the
+     * addr=0 panic; a correct heap with a deliberately bad stack does not.
      *
      * Emitted as initialized data rather than .bss so zesu's allocator sees a
      * live heap on its very first call, with no startup hook to sequence
