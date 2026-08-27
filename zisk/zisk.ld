@@ -125,15 +125,19 @@ SECTIONS
      * that 8 MiB with zesu silently exhausts it on any real block (a mainnet
      * block's working set is hundreds of MiB, and the SSZ input alone is ~6 MiB).
      *
-     * Exhaustion does NOT surface as a clean OOM, which is what makes this so
-     * expensive to debug. sysAllocAligned returns null, and zesu then fails two
-     * ways: parts of the MPT layer swallow the error (src/stateless/mpt/main.zig
-     * "decodeNode(...) catch null") and skip trie canonicalization, yielding a
-     * silently WRONG state root; elsewhere the failure reaches an unchecked
-     * pointer and ziskemu panics reading "addr = 0 + struct_offset", so the crash
-     * site moves with the workload and looks like memory corruption. Confirmed by
-     * A/B test: restoring the alias while keeping a correct stack reproduces the
-     * addr=0 panic; a correct heap with a deliberately bad stack does not.
+     * Exhaustion is hard to recognise for what it is, which is what makes this so
+     * expensive to debug. sysAllocAligned returns null and it shows up two ways:
+     *   - As a clean error that looks like a wrong answer. main() (zesu
+     *     src/zkvm/root.zig) logs the error name and returns 1 WITHOUT calling
+     *     write_output, so the output region stays zeros and a test harness
+     *     reports "output mismatch", not "out of memory".
+     *   - As a null-pointer panic, where the failure reaches an unchecked pointer
+     *     and ziskemu reports "addr = 0 + struct_offset". The site moves with the
+     *     workload, so it reads as memory corruption rather than OOM.
+     * Confirmed by A/B test: restoring the alias while keeping a correct stack
+     * reproduces the addr=0 panic; a correct heap with a deliberately bad stack
+     * does not. Do not chase the crash site — check the heap bounds first
+     * (llvm-objdump -t | grep ZKVM_HEAP).
      *
      * Emitted as initialized data rather than .bss so zesu's allocator sees a
      * live heap on its very first call, with no startup hook to sequence
