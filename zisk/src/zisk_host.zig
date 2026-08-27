@@ -13,8 +13,8 @@
 ///   read_input / write_output        — zkvm-standards io-interface
 ///   zkvm_* accelerators              — all circuit-backed implementations (ZisK 1.1.0-alpha)
 ///   zkvm_init / zkvm_deinit / _start — entrypoint and lifecycle
-/// Zisk zkVM UART — byte writes here appear in ziskemu console output
-const ZISK_UART: *volatile u8 = @ptrFromInt(0xa0000200);
+/// Zisk zkVM UART — SYS_ADDR + 0x200 = 0xa0400000 + 0x200 (v1.1.0-alpha layout)
+const ZISK_UART: *volatile u8 = @ptrFromInt(0xa0400200);
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
 
