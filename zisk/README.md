@@ -2,7 +2,7 @@
 
 Zisk zkVM guest for zesu — compiles the Ethereum stateless block executor to a
 `riscv64-freestanding-none` ELF that runs inside the
-[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.0.0-alpha).
+[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.1.0-alpha).
 
 ## Architecture
 
@@ -23,7 +23,7 @@ zisk-wrapped.o  — All platform symbols, merged in a partial-link step:
 
 The partial link step (`zig ld.lld -r --whole-archive zisk-host.o
 libziskos_staticlib.a --no-whole-archive`) merges `zisk-host.o` and
-`libziskos_staticlib.a` into `zisk-wrapped.o`. Since ZisK 1.0.0-alpha,
+`libziskos_staticlib.a` into `zisk-wrapped.o`. Since ZisK 1.1.0-alpha,
 **all** `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1,
 BN254, BLS12-381, RIPEMD-160, BLAKE2f, modexp, KZG point eval, …) are
 circuit-backed implementations provided directly by ZisK's own
@@ -45,7 +45,7 @@ each symbol defined exactly once.
 |---|---|---|
 | `zkvm_log` | `zisk_host.zig` | UART (0xa0000200) |
 | `read_input`, `write_output` | `libziskos_staticlib.a` | memory-mapped IO (0x40000000 / 0xa0010000) |
-| all `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1, bn254, bls12-381, ripemd160, blake2f, modexp, kzg_point_eval) | `libziskos_staticlib.a` | ZisK 1.0.0-alpha circuit-backed implementations (Rust) |
+| all `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1, bn254, bls12-381, ripemd160, blake2f, modexp, kzg_point_eval) | `libziskos_staticlib.a` | ZisK 1.1.0-alpha circuit-backed implementations (Rust) |
 | `_start`, `_zisk_main`, `init_sys_alloc` | `libziskos_staticlib.a` | Rust entry-point chain |
 | `ZISK_BUMP_HEAP_POS`, `ZISK_BUMP_HEAP_TOP` | `libziskos_staticlib.a` | shared bump heap vars |
 
@@ -70,8 +70,8 @@ zisk/
 | Dependency | Version | Notes |
 |---|---|---|
 | Zig | 0.16.0 | see `minimum_zig_version` in `build.zig.zon`; CI pins exactly 0.16.0 |
-| Rust + cargo-zisk | 1.0.0-alpha | ZisK custom Rust toolchain |
-| Zisk source | v1.0.0-alpha | for building `libziskos_staticlib.a` |
+| Rust + cargo-zisk | 1.1.0-alpha | ZisK custom Rust toolchain |
+| Zisk source | v1.1.0-alpha | for building `libziskos_staticlib.a` |
 | zesu.rv64im.o | — | pre-built object passed via `-Dzesu_obj`, or built from a sibling `../../zesu` checkout if omitted |
 
 ## Building `lib/libziskos_staticlib.a`
@@ -93,8 +93,8 @@ curl -L https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/insta
 # 2. Install the Zisk Rust toolchain (downloads ~1.5 GB)
 cargo-zisk toolchain install
 
-# 3. Clone Zisk v1.0.0-alpha alongside this repo (or set ZISK_DIR)
-git clone --branch v1.0.0-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
+# 3. Clone Zisk v1.1.0-alpha alongside this repo (or set ZISK_DIR)
+git clone --branch v1.1.0-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
 ```
 
 ### Build the library
@@ -180,7 +180,7 @@ main()           (zesu.o / zesu/src/zkvm/root.zig, Zig, export fn)
   returns 0 (success) or 1 (guestMain() error) — no explicit halt call
 ```
 
-## Memory map (Zisk 1.0.0-alpha)
+## Memory map (Zisk 1.1.0-alpha)
 
 | Region | Address | Size |
 |---|---|---|

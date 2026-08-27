@@ -40,6 +40,26 @@ SECTIONS
         . = ALIGN(8);
     } >ROM :text
 
+    /* C++ static constructors / destructors — placed in ROM so they are within
+     * PC-relative (±512 KiB) reach of _zisk_main (also in ROM).  Required by
+     * libziskos_staticlib.a since ZisK 1.1.0-alpha, which added C++ ctor/dtor
+     * support.  Empty when the program has no static initializers (start == end)
+     * so it costs nothing otherwise. */
+    . = ALIGN(8);
+    .init_array : {
+        PROVIDE(__init_array_start = .);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*)))
+        KEEP(*(.init_array))
+        PROVIDE(__init_array_end = .);
+    } >ROM :text
+
+    .fini_array : {
+        PROVIDE(__fini_array_start = .);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.fini_array.*)))
+        KEEP(*(.fini_array))
+        PROVIDE(__fini_array_end = .);
+    } >ROM :text
+
     /* Writable data in RAM */
     . = ALIGN(8);
     .data : {

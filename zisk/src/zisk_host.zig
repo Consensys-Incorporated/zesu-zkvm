@@ -11,7 +11,7 @@
 ///
 /// Symbols provided by libziskos_staticlib.a at link time (NOT exported here):
 ///   read_input / write_output        — zkvm-standards io-interface
-///   zkvm_* accelerators              — all circuit-backed implementations (ZisK 1.0.0-alpha)
+///   zkvm_* accelerators              — all circuit-backed implementations (ZisK 1.1.0-alpha)
 ///   zkvm_init / zkvm_deinit / _start — entrypoint and lifecycle
 /// Zisk zkVM UART — byte writes here appear in ziskemu console output
 const ZISK_UART: *volatile u8 = @ptrFromInt(0xa0000200);

@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
     // Compiled separately so it can be partially linked with libziskos_staticlib.a before
     // the final link.  Exports: runtime and profiling symbols (zkvm_log, zkvm_exit, sys_read,
     // zkvm_profiling_*).  read_input/write_output and all zkvm_* accelerators come from
-    // libziskos_staticlib.a (ZisK 1.0.0-alpha circuit-backed).
+    // libziskos_staticlib.a (ZisK 1.1.0-alpha circuit-backed).
     const host_mod = b.createModule(.{
         .root_source_file = b.path("src/zisk_host.zig"),
         .target = target,
