@@ -18,9 +18,11 @@ env:
   # without anything failing loudly. Pinning a commit makes the coupling between
   # the two repos explicit — bump this line to move.
   #
-  # Currently the commit tagged glamsterdam-devnet-7.2-2026-07-29, i.e. the same
-  # object the release-download path used to fetch.
-  ZESU_REF: "3de426ee388fd754ab2b701e5eb472e0427556b7"
+  # zesu "feat: bump spec to 0.8.2 (#98)", which emits the devnet-8 SSZ output
+  # these vectors expect. Not zesu main: #97 (Mem allocator cleanup) overflows
+  # the guest stack on real mainnet blocks, so mainnet_fusaka_24758573 aborts
+  # under ziskemu with a write below the stack region.
+  ZESU_REF: "65f2ca8ab98a28c9064f03d6d3e9afd33fefc276"
 
 jobs:
   ci:

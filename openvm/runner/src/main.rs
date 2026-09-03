@@ -18,7 +18,14 @@ use openvm_sdk::{
 };
 use openvm_sdk_config::SdkVmConfig;
 
-const SSZ_OUTPUT_LEN: usize = 105;
+/// Length of `SszStatelessValidationResult` under zkevm@v0.8.0: a flat
+/// `root(32) ‖ valid(1) ‖ chain_id(8, LE) ‖ schema_id(2, LE)`. It was 105 under
+/// v0.5.0, where the result nested a `SszChainConfig`.
+///
+/// The guest reveals in 8-byte chunks, so it touches `ceil(43/8)*8 = 48` bytes of
+/// the public values and never writes the rest; anything sliced beyond the result
+/// is padding, not output.
+const SSZ_OUTPUT_LEN: usize = 43;
 const NUM_PUBLIC_VALUES: usize = 112;
 
 fn main() -> Result<()> {
