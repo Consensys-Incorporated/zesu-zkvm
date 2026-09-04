@@ -18,11 +18,10 @@ env:
   # without anything failing loudly. Pinning a commit makes the coupling between
   # the two repos explicit — bump this line to move.
   #
-  # zesu "feat: bump spec to 0.8.2 (#98)", which emits the devnet-8 SSZ output
-  # these vectors expect. Not zesu main: #97 (Mem allocator cleanup) overflows
-  # the guest stack on real mainnet blocks, so mainnet_fusaka_24758573 aborts
-  # under ziskemu with a write below the stack region.
-  ZESU_REF: "65f2ca8ab98a28c9064f03d6d3e9afd33fefc276"
+  # zesu main. The pin sat four commits behind on 65f2ca8 while the guest could
+  # not execute a mainnet block at all; zesu #107 fixed that, and zesu now runs
+  # these vectors in its own CI, so main is a safe target again.
+  ZESU_REF: "329c0128306ae131c9e6e0ceb2d10463c464c4e9"
 
 jobs:
   ci:
