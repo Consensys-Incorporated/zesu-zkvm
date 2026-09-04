@@ -2,7 +2,7 @@
 
 Zisk zkVM guest for zesu — compiles the Ethereum stateless block executor to a
 `riscv64-freestanding-none` ELF that runs inside the
-[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.0.0-alpha).
+[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.1.0-alpha).
 
 ## Architecture
 
@@ -43,11 +43,12 @@ each symbol defined exactly once.
 
 | Symbol(s) | Source | Implementation |
 |---|---|---|
-| `zkvm_log` | `zisk_host.zig` | UART (0xa0000200) |
-| `read_input`, `write_output` | `libziskos_staticlib.a` | memory-mapped IO (0x40000000 / 0xa0010000) |
-| all `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1, bn254, bls12-381, ripemd160, blake2f, modexp, kzg_point_eval) | `libziskos_staticlib.a` | ZisK 1.0.0-alpha circuit-backed implementations (Rust) |
+| `zkvm_log` | `zisk_host.zig` | UART (0xa0400200) |
+| `read_input`, `write_output` | `libziskos_staticlib.a` | memory-mapped IO (0x40000000 / 0xa0410000) |
+| all `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1, bn254, bls12-381, ripemd160, blake2f, modexp, kzg_point_eval) | `libziskos_staticlib.a` | ZisK circuit-backed implementations (Rust) |
 | `_start`, `_zisk_main`, `init_sys_alloc` | `libziskos_staticlib.a` | Rust entry-point chain |
-| `ZISK_BUMP_HEAP_POS`, `ZISK_BUMP_HEAP_TOP` | `libziskos_staticlib.a` | shared bump heap vars |
+| `ZISK_BUMP_HEAP_POS`, `ZISK_BUMP_HEAP_TOP` | `libziskos_staticlib.a` | ziskos's **private** heap — an isolated 8 MiB static buffer. Do **not** alias `ZKVM_HEAP_POS`/`TOP` onto these (see Memory map) |
+| `ZKVM_HEAP_POS`, `ZKVM_HEAP_TOP` | `zisk.ld` (`.zesu_heap_vars`) | zesu's own heap bounds: RAM past `.bss` up to `FLOAT_LIB_RAM_ADDR` |
 
 ## Directory layout
 
@@ -70,8 +71,8 @@ zisk/
 | Dependency | Version | Notes |
 |---|---|---|
 | Zig | 0.16.0 | see `minimum_zig_version` in `build.zig.zon`; CI pins exactly 0.16.0 |
-| Rust + cargo-zisk | 1.0.0-alpha | ZisK custom Rust toolchain |
-| Zisk source | v1.0.0-alpha | for building `libziskos_staticlib.a` |
+| Rust + cargo-zisk | 1.1.0-alpha | ZisK custom Rust toolchain |
+| Zisk source | v1.1.0-alpha | for building `libziskos_staticlib.a` |
 | zesu.rv64im.o | — | pre-built object passed via `-Dzesu_obj`, or built from a sibling `../../zesu` checkout if omitted |
 
 ## Building `lib/libziskos_staticlib.a`
@@ -93,8 +94,8 @@ curl -L https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/insta
 # 2. Install the Zisk Rust toolchain (downloads ~1.5 GB)
 cargo-zisk toolchain install
 
-# 3. Clone Zisk v1.0.0-alpha alongside this repo (or set ZISK_DIR)
-git clone --branch v1.0.0-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
+# 3. Clone Zisk v1.1.0-alpha alongside this repo (or set ZISK_DIR)
+git clone --branch v1.1.0-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
 ```
 
 ### Build the library
@@ -180,13 +181,36 @@ main()           (zesu.o / zesu/src/zkvm/root.zig, Zig, export fn)
   returns 0 (success) or 1 (guestMain() error) — no explicit halt call
 ```
 
-## Memory map (Zisk 1.0.0-alpha)
+## Memory map (Zisk 1.1.0-alpha)
+
+Authoritative constants live in `zisk/core/src/mem.rs`; this mirrors upstream's
+`ziskbuild/zisk_linker_script.ld`.
 
 | Region | Address | Size |
 |---|---|---|
-| ROM (code + rodata) | `0x80000000` | 128 MB |
-| SYS / UART | `0xa0000000` | 64 KB |
-| OUTPUT | `0xa0010000` | 64 KB |
-| gap | `0xa0020000` | 64 KB |
-| RAM (heap + stack) | `0xa0030000` | ~512 MB |
+| ROM (code + rodata) | `0x80000000` | 128 MB (last 1 MB reserved for float lib) |
+| STACK (grows down from the top) | `0xa0000000` | 4 MB |
+| SYS — general registers; UART at `0xa0400200` | `0xa0400000` | 32 KB |
+| SYS — float registers | `0xa0408000` | 32 KB |
+| OUTPUT (`OUTPUT_MAX_SIZE`) | `0xa0410000` | 128 KB |
+| RAM — `.data`/`.bss`, then zesu's heap | `0xa0430000` | ~507 MB |
+| float lib RAM (`FLOAT_LIB_RAM_ADDR`) | `0xbfff0000` | 64 KB |
 | INPUT | `0x40000000` | 1 GB |
+
+Three things that are easy to get wrong here:
+
+- The stack is **not** carved out of the linker script's `RAM` region. It lives in
+  ziskemu's own `0xa0000000..0xa0400000` window, and `_init_stack_top` is
+  `0xa0400000`.
+- `RAM` must start at `0xa0430000`, after the **full 128 KB** OUTPUT region. Only
+  the first 256 bytes (`ZISK_PUBLICS * 4`) are read back by the emulator, so a
+  lower origin appears to work while quietly putting `.bss` in space upstream
+  reserves for output data.
+- zesu's heap (`ZKVM_HEAP_POS`/`TOP`) must **not** be aliased onto
+  `ZISK_BUMP_HEAP_POS`/`TOP`. Since 1.1.0-alpha those point at ziskos's private,
+  isolated 8 MiB static buffer — far too small for a real block, and exhausting it
+  surfaces as null-pointer derefs at small addresses (`0 + struct_offset`) in
+  whatever code happens to allocate next, not as a clean OOM.
+
+ziskemu maps all of `0xa0000000..0xc0000000` as a single zero-initialized writable
+section, so `.bss` needs no explicit clearing.

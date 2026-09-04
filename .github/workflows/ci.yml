@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  ZISK_VERSION: "1.0.0-alpha"
+  ZISK_VERSION: "1.1.0-alpha"
   ZISK_TARGET: riscv64ima-zisk-zkvm-elf
   # zesu revision the guest object is built from. Any commit-ish works; prefer a
   # full SHA so a CI result stays reproducible.
