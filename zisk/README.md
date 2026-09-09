@@ -2,7 +2,7 @@
 
 Zisk zkVM guest for zesu — compiles the Ethereum stateless block executor to a
 `riscv64-freestanding-none` ELF that runs inside the
-[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.1.0-alpha).
+[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.2.0-alpha).
 
 ## Architecture
 
@@ -71,8 +71,8 @@ zisk/
 | Dependency | Version | Notes |
 |---|---|---|
 | Zig | 0.16.0 | see `minimum_zig_version` in `build.zig.zon`; CI pins exactly 0.16.0 |
-| Rust + cargo-zisk | 1.1.0-alpha | ZisK custom Rust toolchain |
-| Zisk source | v1.1.0-alpha | for building `libziskos_staticlib.a` |
+| Rust + cargo-zisk | 1.2.0-alpha | ZisK custom Rust toolchain |
+| Zisk source | v1.2.0-alpha | for building `libziskos_staticlib.a` |
 | zesu.rv64im.o | — | pre-built object passed via `-Dzesu_obj`, or built from a sibling `../../zesu` checkout if omitted |
 
 ## Building `lib/libziskos_staticlib.a`
@@ -94,8 +94,8 @@ curl -L https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/insta
 # 2. Install the Zisk Rust toolchain (downloads ~1.5 GB)
 cargo-zisk toolchain install
 
-# 3. Clone Zisk v1.1.0-alpha alongside this repo (or set ZISK_DIR)
-git clone --branch v1.1.0-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
+# 3. Clone Zisk v1.2.0-alpha alongside this repo (or set ZISK_DIR)
+git clone --branch v1.2.0-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
 ```
 
 ### Build the library
@@ -181,7 +181,7 @@ main()           (zesu.o / zesu/src/zkvm/root.zig, Zig, export fn)
   returns 0 (success) or 1 (guestMain() error) — no explicit halt call
 ```
 
-## Memory map (Zisk 1.1.0-alpha)
+## Memory map (Zisk 1.2.0-alpha — unchanged since 1.1.0-alpha)
 
 Authoritative constants live in `zisk/core/src/mem.rs`; this mirrors upstream's
 `ziskbuild/zisk_linker_script.ld`.
