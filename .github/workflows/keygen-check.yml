@@ -1,0 +1,160 @@
+# Checks that a given zesu commit produces an ELF `ere-server-zisk keygen`
+# accepts, without cutting a release first. `release.yml` runs keygen but can
+# only source the ELF from a release tag; `ci.yml` builds from an arbitrary
+# commit but never runs keygen.
+#
+# Run it before shipping anything that changes what the guest compiles to --
+# target features, the linker script, a ziskos bump. keygen cannot be run
+# locally on arm64: the ere-server images are linux/amd64 only and the prover
+# needs x86 vector instructions Rosetta does not emulate, so it spins forever.
+name: Keygen check
+
+run-name: keygen ${{ inputs.zesu_repo }}@${{ inputs.zesu_ref }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      zesu_ref:
+        description: "zesu commit SHA, branch or tag to build the guest from"
+        required: true
+        type: string
+      zesu_repo:
+        description: "zesu repository (override when the ref lives on a fork)"
+        required: false
+        type: string
+        default: "Consensys-Incorporated/zesu"
+
+env:
+  ZISK_VERSION: "1.1.0-alpha"
+  ERE_TAG: "0.17.0"
+
+jobs:
+  keygen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout zesu-zkvm
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: zesu-zkvm
+
+      - name: Checkout zisk
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: 0xPolygonHermez/zisk
+          ref: v${{ env.ZISK_VERSION }}
+          path: zisk
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: "0.16.0"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Install cargo-zisk runtime deps
+        run: sudo apt-get install -y libomp5 libopenmpi3t64
+
+      - name: Install cargo-zisk
+        run: |
+          ZISK_BIN_DIR="${HOME}/.config/.zisk/bin"
+          mkdir -p "$ZISK_BIN_DIR"
+          curl -fsSL "https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/ziskup" \
+            -o "$ZISK_BIN_DIR/ziskup"
+          chmod +x "$ZISK_BIN_DIR/ziskup"
+          "$ZISK_BIN_DIR/ziskup" --cpu --nokey
+          echo "$ZISK_BIN_DIR" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Zisk Rust toolchain
+        run: cargo +zisk --version 2>/dev/null || cargo-zisk toolchain install
+
+      - name: Cache libziskos_staticlib.a
+        id: cache-libziskos
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: zesu-zkvm/zisk/lib/libziskos_staticlib.a
+          key: libziskos-staticlib-${{ env.ZISK_VERSION }}-${{ runner.os }}
+
+      - name: Build libziskos_staticlib.a
+        if: steps.cache-libziskos.outputs.cache-hit != 'true'
+        working-directory: zesu-zkvm/zisk
+        run: make lib/libziskos_staticlib.a ZISK_DIR=$GITHUB_WORKSPACE/zisk
+
+      - name: Checkout zesu
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ inputs.zesu_repo }}
+          ref: ${{ inputs.zesu_ref }}
+          path: zesu
+
+      - name: Record what is under test
+        working-directory: zesu
+        run: |
+          echo "zesu ${{ inputs.zesu_repo }}@$(git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
+          echo "zisk $ZISK_VERSION, ere $ERE_TAG" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build zesu object
+        working-directory: zesu
+        run: |
+          zig build rv64im-object -Doptimize=ReleaseFast
+          mkdir -p /tmp/zesu-obj
+          cp zig-out/lib/zesu.o /tmp/zesu-obj/zesu.rv64im.o
+
+      - name: Build Zesu ZisK ELF
+        working-directory: zesu-zkvm/zisk
+        run: zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o
+
+      # A keygen pass says little unless you know which instructions the ELF
+      # actually contains -- an accidentally-dropped target feature would
+      # otherwise look like a clean result.
+      - name: Summarise the ELF
+        run: |
+          python3 - <<'PY' >> $GITHUB_STEP_SUMMARY
+          import struct
+          p = 'zesu-zkvm/zisk/zig-out/bin/zesu-zisk'
+          d = open(p, 'rb').read()
+          shoff = struct.unpack_from('<Q', d, 40)[0]
+          se, sn, sx = struct.unpack_from('<HHH', d, 58)
+          secs = [struct.unpack_from('<IIQQQQIIQQ', d, shoff + i * se) for i in range(sn)]
+          stro = secs[sx][4]
+          text = next(s for s in secs
+                      if d[stro + s[0]:d.index(b'\0', stro + s[0])] == b'.text')
+          off, size = text[4], text[5]
+          rev8 = minmax = zbs = 0
+          for q in range(off, off + size - 3, 4):
+              w = struct.unpack_from('<I', d, q)[0]
+              op, f3, f7, imm = w & 0x7f, (w >> 12) & 7, (w >> 25) & 0x7f, (w >> 20) & 0xfff
+              if op == 0x13 and f3 == 5 and imm == 0x6B8: rev8 += 1
+              if op == 0x33 and f7 == 0x05 and f3 in (4, 5, 6, 7): minmax += 1
+              if op == 0x33 and f7 in (0x14, 0x24, 0x48, 0x34) and f3 == 1: zbs += 1
+          print(f'ELF {len(d)} bytes, .text {size} bytes')
+          print(f'Zbb: rev8={rev8} min/max={minmax} | Zbs: bset/bclr/bext/binv={zbs}')
+          PY
+
+      - name: Free up disk space for ere-server-zisk image
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android \
+                      /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          df -h /
+
+      - name: Generate program VK
+        run: |
+          docker pull "ghcr.io/eth-act/ere/ere-server-zisk:${{ env.ERE_TAG }}"
+          docker run --rm \
+            -v "${{ github.workspace }}/zesu-zkvm/zisk/zig-out/bin:/output" \
+            "ghcr.io/eth-act/ere/ere-server-zisk:${{ env.ERE_TAG }}" \
+            --elf-path /output/zesu-zisk \
+            keygen \
+            --program-vk-path /output/zesu-zisk.vk
+
+      - name: Upload ELF and VK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: keygen-check-${{ inputs.zesu_ref }}
+          path: |
+            zesu-zkvm/zisk/zig-out/bin/zesu-zisk
+            zesu-zkvm/zisk/zig-out/bin/zesu-zisk.vk
+          if-no-files-found: error
