@@ -46,6 +46,17 @@ export fn zkvm_log(level: u8, msg_ptr: [*]const u8, msg_len: usize) void {
     io.printStr("\n");
 }
 
+/// Abort hook called by zesu.o's panic handler. Emits OpenVM's TERMINATE(1)
+/// custom instruction — the same path startup.S takes when main() returns 1.
+export fn zkvm_abort() noreturn {
+    asm volatile (
+        \\.insn i 0x0b, 0, x0, x0, 1
+        \\unimp
+        :::
+    );
+    unreachable;
+}
+
 // ── IO — zkvm-standards io-interface ─────────────────────────────────────────
 
 export fn read_input(buf_ptr: *[*]const u8, buf_size: *usize) void {
