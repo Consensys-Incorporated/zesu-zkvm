@@ -109,7 +109,7 @@ openvm/
 |---|---|---|
 | Zig | ≥ 0.16.0 | see `minimum_zig_version` in `build.zig.zon` |
 | Rust stable | ≥ 1.91 | `rustup update stable` |
-| OpenVM source | path dep | at `../../../../openvm` relative to this directory |
+| OpenVM source | path dep, [`v2.x.0-preview.2`](https://github.com/openvm-org/openvm/releases/tag/v2.x.0-preview.2) | at `../../../openvm` relative to this directory (i.e. a sibling of `zesu-zkvm/`) |
 | zesu/core | path dep | sibling at `../../zesu/core` |
 
 ## Building the guest ELF
@@ -171,4 +171,4 @@ strips the length prefix and hands the SSZ slice to the executor.
 |---|---|---|
 | Stack top | `0x00200400` | grows down |
 | ROM (code + rodata) | `0x00200800` | TEXT_START |
-| Heap | `_end` (after BSS) | up to `0x20000000` (512 MB) |
+| Heap | `_end` (after BSS) | capped at `0x20000000` (512 MB); openvm-platform allows up to 4 GB as of v2.x.0-preview.2 |
