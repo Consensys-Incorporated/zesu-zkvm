@@ -52,10 +52,7 @@ export fn zkvm_abort() noreturn {
     asm volatile (
         \\.insn i 0x0b, 0, x0, x0, 1
         \\unimp
-        :
-        :
-        : .{}
-    );
+        ::: .{});
     unreachable;
 }
 

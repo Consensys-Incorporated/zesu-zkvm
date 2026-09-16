@@ -34,9 +34,6 @@ export fn zkvm_abort() noreturn {
         \\li a7, 93
         \\li a0, 1
         \\ecall
-        :
-        :
-        : .{ .a7 = true, .a0 = true, .memory = true }
-    );
+        ::: .{ .a7 = true, .a0 = true, .memory = true });
     unreachable;
 }
