@@ -54,7 +54,9 @@ export fn zkvm_abort() noreturn {
         \\li a0, 1
         \\ecall
         \\wfi
-        ::: "a7", "a0", "memory"
+        :
+        :
+        : .{ .a7 = true, .a0 = true, .memory = true }
     );
     unreachable;
 }
