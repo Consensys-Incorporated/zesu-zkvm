@@ -46,6 +46,18 @@ export fn zkvm_log(level: u8, msg_ptr: [*]const u8, msg_len: usize) void {
     io.printStr("\n");
 }
 
+/// Abort hook called by zesu.o's panic handler. Uses the same exit(93) ecall
+/// that startup.S fires after main() returns — Linea's circuit handles it.
+export fn zkvm_abort() noreturn {
+    asm volatile (
+        \\li a7, 93
+        \\li a0, 1
+        \\ecall
+        \\wfi
+        ::: .{ .a7 = true, .a0 = true, .memory = true });
+    unreachable;
+}
+
 // ── IO — zkvm-standards io-interface ─────────────────────────────────────────
 
 export fn read_input(buf_ptr: *[*]const u8, buf_size: *usize) void {
