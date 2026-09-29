@@ -3,7 +3,7 @@
 # Prerequisites:
 #   - Zig (see minimum_zig_version in build.zig.zon)
 #   - Rust 1.91.1 stable (for the runner)
-#   - openvm checkout at ../../../../openvm relative to this directory
+#   - OpenVM is fetched by cargo, pinned to the revision eth-act/ere executes with
 #
 # Usage:
 #   make runner               — build the Rust host runner
