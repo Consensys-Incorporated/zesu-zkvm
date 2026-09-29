@@ -1,0 +1,17 @@
+# The rustc flags `cargo openvm build` passes to every guest
+# (openvm-build encode_rust_flags, v2.1.0-preview): atomics become plain ops in
+# the single-threaded guest, and guest crates select their OpenVM-intrinsic
+# code paths.
+[target.riscv64imac-unknown-none-elf]
+rustflags = [
+    "-C", "passes=lower-atomic",
+    "-C", "panic=abort",
+    # The guest is rv64im. Start from the imac target, whose spec has atomics
+    # (riscv64im-unknown-none-elf lacks them, and openvm's once_cell needs
+    # compare_exchange); lower-atomic makes every atomic op a plain one, so
+    # dropping A and C leaves only rv64im instructions.
+    "-C", "target-feature=-a,-c,-zca,-zcd",
+    "--cfg", 'getrandom_backend="custom"',
+    "--cfg", "openvm_intrinsics",
+    "--check-cfg=cfg(openvm_intrinsics)",
+]

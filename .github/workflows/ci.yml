@@ -114,6 +114,15 @@ jobs:
         working-directory: zesu-zkvm/openvm
         run: zig fmt --check src/ build.zig
 
+      - name: Install Rust nightly for the OpenVM pairing library
+        # Stock nightly + rust-src: the library is built for riscv64imac-unknown-none-elf
+        # with -Z build-std; OpenVM's custom toolchain is not needed.
+        run: rustup toolchain install nightly-2026-01-18 --component rust-src,llvm-tools --profile minimal
+
+      - name: Build OpenVM pairing library
+        working-directory: zesu-zkvm/openvm
+        run: make pairing-lib
+
       - name: Build openvm (ReleaseFast)
         working-directory: zesu-zkvm/openvm
         run: zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o
