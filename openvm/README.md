@@ -96,9 +96,9 @@ openvm/
       zesu_allocator.zig — zesu_allocator shim (unused after refactor)
     main.zig            — previous entry point (unused after refactor)
   runner/
-    src/main.rs        — Rust host: loads ELF, feeds hint stream, reads public values
+    src/main.rs        — Rust host: executes the ELF the way eth-act/ere does
   openvm.ld            — linker script (TEXT_START=0x00200800, 512 MB heap)
-  openvm.toml          — VM config (rv64i + rv64m + io, 64 public value bytes)
+  openvm.toml          — VM config: a copy of openvm's `openvm_standard.toml` (`SdkVmConfig::standard()`)
   build.zig            — Zig build script
   Makefile             — build / run / test / bless
 ```
@@ -109,7 +109,7 @@ openvm/
 |---|---|---|
 | Zig | ≥ 0.16.0 | see `minimum_zig_version` in `build.zig.zon` |
 | Rust stable | ≥ 1.91 | `rustup update stable` |
-| OpenVM source | path dep | at `../../../../openvm` relative to this directory |
+| OpenVM | [`v2.1.0-preview`](https://github.com/openvm-org/openvm/releases/tag/v2.1.0-preview) | git dep, pinned to the revision [eth-act/ere](https://github.com/eth-act/ere) v0.17.0 uses |
 | zesu/core | path dep | sibling at `../../zesu/core` |
 
 ## Building the guest ELF
@@ -145,15 +145,27 @@ make test
 make bless
 ```
 
+## ere compatibility
+
+The guest targets the ABI eth-act/ere's OpenVM host executes with, so the same ELF
+runs under the runner here and under `zkevm-benchmark-workload`:
+
+- **VM config:** `SdkVmConfig::standard()` with 256 public-value bytes. The
+  accelerators in `src/zkvm_accel/` encode modulus, curve, Fp2 and pairing indices
+  in that config's order (BN254 first, then secp256k1, P-256, BLS12-381).
+- **Input:** the raw SSZ payload as one hint-stream entry — ere's
+  `StdIn::write_bytes(statelessInputBytes)`, read like `openvm::io::read_vec`.
+
 ## Input format
+
+Input files (`vectors/*.bin`) share the ZisK target's format:
 
 ```
 [0..8]   payload_len  — u64 LE, byte count of the SSZ body
 [8..]    SSZ body     — padded to 8-byte boundary
 ```
 
-The host runner passes the raw file bytes via `StdIn::from_bytes`; `zkvm_io.read_input`
-strips the length prefix and hands the SSZ slice to the executor.
+The host runner strips the header and passes only the SSZ body to the guest.
 
 ## Output format
 

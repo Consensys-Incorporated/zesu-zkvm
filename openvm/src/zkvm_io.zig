@@ -10,8 +10,9 @@
 ///   funct3=3 PHANTOM:   hint_input (imm=0), print_str (imm=1)
 const std = @import("std");
 
-/// Maximum input size: 8-byte header + up to 64 MB SSZ payload (padded to 8 bytes).
-const MAX_INPUT_SIZE: usize = 8 + 64 * 1024 * 1024 + 8;
+/// Maximum input size: up to 64 MB SSZ payload. A multiple of 8, so reading
+/// the payload rounded up to whole dwords never overruns the buffer.
+const MAX_INPUT_SIZE: usize = 64 * 1024 * 1024;
 
 /// Static input buffer; populated once per execution via the hint stream.
 var input_buf: [MAX_INPUT_SIZE]u8 align(8) = undefined;
@@ -66,47 +67,31 @@ pub fn printStr(s: []const u8) void {
 
 /// Read the private input data.
 ///
-/// Input file format (.bin test vectors):
-///   [0..8]   payload_len (u64 LE) — byte count of the SSZ payload
-///   [8..]    SSZ payload (padded to 8-byte boundary in the file)
+/// The input is the raw SSZ payload as a single hint-stream entry — what
+/// eth-act/ere's OpenVM host writes (`StdIn::write_bytes(statelessInputBytes)`)
+/// and what `openvm::io::read_vec` reads: the executor prefixes the entry with
+/// an 8-byte LE length word and zero-pads the bytes to a dword boundary.
 ///
-/// The OpenVM executor prefixes the hint stream with another 8-byte LE
-/// total-length word (= file size) before the raw file bytes.
-///
-/// On return, buf_ptr points to the SSZ payload and buf_size is payload_len.
+/// On return, buf_ptr points to the SSZ payload and buf_size is its length.
 pub fn read_input(buf_ptr: *[*]const u8, buf_size: *usize) void {
     // Advance hint stream to the first (and only) input vector.
     hintInput();
 
-    // Read the executor's own 8-byte total-length prefix (= file size).
+    // Read the executor's 8-byte length prefix (= payload length).
     hintStoreU64(&len_buf);
-    const total_len = len_buf;
+    const len = len_buf;
 
     // Validate before reading: a malformed or oversized hint stream must not
-    // write past input_buf.  total_len includes the 8-byte payload_len header
-    // plus the padded SSZ body, so it must fit within MAX_INPUT_SIZE.
-    if (total_len > MAX_INPUT_SIZE) {
-        @panic("hint-stream total_len exceeds MAX_INPUT_SIZE");
+    // write past input_buf.
+    if (len > MAX_INPUT_SIZE) {
+        @panic("hint-stream length exceeds MAX_INPUT_SIZE");
     }
 
-    // Read all file bytes into input_buf (already rounded to dword boundary
-    // by the executor's padding, but div-ceil is safe either way).
-    const num_dwords = (total_len + 7) / 8;
+    const num_dwords = (len + 7) / 8;
     hintBufferChunked(&input_buf, @intCast(num_dwords));
 
-    // File header: first 8 bytes = SSZ payload length (u64 LE).
-    const payload_len_ptr: *align(1) const u64 = @ptrCast(&input_buf[0]);
-    const payload_len = std.mem.littleToNative(u64, payload_len_ptr.*);
-
-    // Validate that the header-advertised payload fits within the bytes we
-    // actually read.  total_len includes the 8-byte header itself, so the
-    // payload must be <= total_len - 8.
-    if (total_len < 8 or payload_len > total_len - 8) {
-        @panic("file header payload_len exceeds total_len");
-    }
-
-    buf_ptr.* = @ptrCast(&input_buf[8]);
-    buf_size.* = @intCast(payload_len);
+    buf_ptr.* = @ptrCast(&input_buf[0]);
+    buf_size.* = @intCast(len);
 }
 
 /// Write the SSZ output bytes to the OpenVM public values via reveal instructions.

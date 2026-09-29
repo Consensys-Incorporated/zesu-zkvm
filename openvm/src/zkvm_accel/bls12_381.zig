@@ -3,12 +3,13 @@
 /// mod_idx=6  → BLS12-381 Fq (base field prime)     (opcode=0x2b, funct3=0, funct7=mod_idx*8+op)
 /// mod_idx=7  → BLS12-381 Fr (scalar field order)
 /// curve_idx=3 → BLS12-381 G1                        (opcode=0x2b, funct3=1, funct7=curve_idx*8+op)
-/// fp2_idx=0  → BLS12-381 Fp2 (Fq²)                 (opcode=0x2b, funct3=2, funct7=fp2_idx*8+op)
+/// fp2_idx=1  → BLS12-381 Fp2 (Fq²)                 (opcode=0x2b, funct3=2, funct7=fp2_idx*8+op)
 ///
-/// Index assignments assume:
-///   supported_moduli = [secp256k1.p, secp256k1.n, bn254.p, bn254.r, p256.p, p256.n, bls.Fq, bls.Fr]
-///   supported_curves = [secp256k1, bn254_G1, p256, bls_G1]
-///   fp2_moduli       = [bls.Fq]
+/// Indices follow openvm's SdkVmConfig::standard(), the config eth-act/ere executes with:
+///   supported_moduli = [bn254.p, bn254.r, secp256k1.p, secp256k1.n, p256.p, p256.n, bls.Fq, bls.Fr]
+///   supported_curves = [bn254_G1, secp256k1, p256, bls_G1]
+///   fp2_moduli       = [bn254.Fp2, bls.Fq2]
+///   pairing_curves   = [bn254, bls12_381]
 ///
 /// External point formats (big-endian, EIP-2537):
 ///   G1: x_BE[48] || y_BE[48]   = 96 bytes
@@ -208,14 +209,14 @@ fn setupOnce() void {
           [rs1] "r" (fr_ptr),
         : .{ .memory = true });
 
-    // Fp2 SETUP_ADDSUB for fp2_idx=0: funct3=2, funct7 = 0*8+4 = 4, rs2=x0
-    asm volatile (".insn r 0x2b, 2, 4, %[rd], %[rs1], x0"
+    // Fp2 SETUP_ADDSUB for fp2_idx=1: funct3=2, funct7 = 1*8+4 = 12, rs2=x0
+    asm volatile (".insn r 0x2b, 2, 12, %[rd], %[rs1], x0"
         :
         : [rd] "r" (@intFromPtr(&uninit_fp2)),
           [rs1] "r" (fq_ptr),
         : .{ .memory = true });
-    // Fp2 SETUP_MULDIV for fp2_idx=0: funct7=4, rs2=x1
-    asm volatile (".insn r 0x2b, 2, 4, %[rd], %[rs1], x1"
+    // Fp2 SETUP_MULDIV for fp2_idx=1: funct7=12, rs2=x1
+    asm volatile (".insn r 0x2b, 2, 12, %[rd], %[rs1], x1"
         :
         : [rd] "r" (@intFromPtr(&uninit_fp2)),
           [rs1] "r" (fq_ptr),
@@ -285,10 +286,10 @@ inline fn subFq(out: *Fq, a: *const Fq, b: *const Fq) void {
         : .{ .memory = true });
 }
 
-// ── Fp2 arithmetic (fp2_idx=0, funct3=2, funct7 = 0*8+base) ─────────────────
+// ── Fp2 arithmetic (fp2_idx=1, funct3=2, funct7 = 1*8+base) ─────────────────
 
 inline fn addFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 0, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 8, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -297,7 +298,7 @@ inline fn addFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
 }
 
 inline fn subFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 1, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 9, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -306,7 +307,7 @@ inline fn subFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
 }
 
 inline fn mulFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 2, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 10, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -315,7 +316,7 @@ inline fn mulFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
 }
 
 inline fn divFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 3, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 11, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
