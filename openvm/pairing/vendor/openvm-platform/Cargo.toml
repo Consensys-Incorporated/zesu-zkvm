@@ -1,0 +1,42 @@
+[package]
+name = "openvm-platform"
+description = "OpenVM Rust platform definitions."
+version = "2.0.0"
+authors = ["OpenVM Authors"]
+edition = "2021"
+rust-version = "1.91.1"
+homepage = "https://openvm.dev"
+repository = "https://github.com/openvm-org/"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+openvm-custom-insn = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90", default-features = false }
+openvm-riscv-guest = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90", default-features = false }
+
+# This crate should have as few dependencies as possible so it can be
+# used as many places as possible to share the platform definitions.
+[target.'cfg(all(target_arch = "riscv64", any(target_os = "none", target_os = "openvm")))'.dependencies]
+critical-section = { version = "1.1.2", default-features = false, optional = true }
+embedded-alloc = { version = "0.6.0", features = [
+    "allocator_api",
+], optional = true }
+libm = { version = "0.2", optional = true }
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+features = ["rust-runtime", "panic-handler", "export-libm"]
+
+[features]
+default = []
+entrypoint = []
+export-libm = ["dep:libm"]
+heap-embedded-alloc = [
+    "dep:critical-section",
+    "dep:embedded-alloc",
+    "rust-runtime",
+]
+panic-handler = []
+# Build a rust runtime
+rust-runtime = ["export-libm"]
+std = []
+

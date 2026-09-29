@@ -112,6 +112,15 @@ jobs:
         working-directory: zesu-zkvm/openvm
         run: zig fmt --check src/ build.zig
 
+      - name: Install OpenVM Rust toolchain
+        # OpenVM's own installer, at the revision openvm/pairing pins; links the
+        # openvm-1.94.1 toolchain (riscv64im-unknown-openvm-elf) into rustup.
+        run: curl -fsSL https://raw.githubusercontent.com/han0110/openvm/a391b22ebb5305fa52d3394abfd0810df4baff90/ci/install-openvm-toolchain.sh | bash
+
+      - name: Build OpenVM pairing library
+        working-directory: zesu-zkvm/openvm
+        run: make pairing-lib
+
       - name: Build openvm (ReleaseFast)
         working-directory: zesu-zkvm/openvm
         run: zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o

@@ -14,13 +14,15 @@ zig-cache/
 # zkVM prebuilt libraries (built by each target's Makefile, not committed)
 zisk/lib/
 sp1/lib/
+openvm/lib/
 
 # Per-zkVM Zig build artifacts
 zisk/zig-out/
 zisk/.zig-cache/
 
-# omit openvm runner build tree
+# omit openvm runner and pairing-library build trees
 openvm/runner/target/
+openvm/pairing/target/
 openvm/.zig-cache/
 openvm/zig-out
 

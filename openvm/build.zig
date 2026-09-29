@@ -55,9 +55,10 @@ pub fn build(b: *std.Build) void {
     });
 
     // ── Guest executable ──────────────────────────────────────────────────────
-    // zesu.o (main + EVM logic) + openvm-host.o (host + accelerators).
-    // startup.S provides _start → openvm_init_heap → main.
-    // No partial link needed: no external archive with duplicate symbols.
+    // zesu.o (main + EVM logic) + openvm-host.o (host + accelerators)
+    // + lib/libzesu_openvm_pairing.a (OpenVM's pairing library; `make pairing-lib`).
+    // startup.S provides _start → openvm_init_heap → main; the library's own
+    // _start and mem* routines are localized when it is built.
     const exe = b.addExecutable(.{
         .name = "zesu-openvm",
         .root_module = b.createModule(.{
@@ -80,6 +81,7 @@ pub fn build(b: *std.Build) void {
         exe.step.dependOn(&build_zesu.step);
     }
     exe.root_module.addObject(host_obj);
+    exe.root_module.addObjectFile(b.path("lib/libzesu_openvm_pairing.a"));
     exe.root_module.addAssemblyFile(b.path("src/startup.S"));
     exe.setLinkerScript(b.path("openvm.ld"));
 
