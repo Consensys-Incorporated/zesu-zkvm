@@ -372,10 +372,15 @@ fn g1PointAddInPlace(a: *[96]u8, b: *const [96]u8) void {
 
 /// G1 scalar multiply: result = k * p, LSB-first double-and-add.
 fn g1ScalarMul(result: *[96]u8, k: *const Fr, p: *const [96]u8) void {
+    g1ScalarMulBytes(result, k, p);
+}
+
+/// G1 scalar multiply by a little-endian scalar of any length.
+fn g1ScalarMulBytes(result: *[96]u8, k: []const u8, p: *const [96]u8) void {
     @memset(result, 0);
     if (std.mem.allEqual(u8, k, 0)) return;
     var cur: [96]u8 align(8) = p.*;
-    for (0..256) |i| {
+    for (0..k.len * 8) |i| {
         const byte_idx = i / 8;
         const bit_idx: u3 = @intCast(i % 8);
         if ((k[byte_idx] >> bit_idx) & 1 == 1) {
@@ -517,10 +522,15 @@ fn g2PointAddInPlace(a: *[192]u8, b: *const [192]u8) void {
 
 /// G2 scalar multiply: result = k * p, LSB-first double-and-add.
 fn g2ScalarMul(result: *[192]u8, k: *const Fr, p: *const [192]u8) void {
+    g2ScalarMulBytes(result, k, p);
+}
+
+/// G2 scalar multiply by a little-endian scalar of any length.
+fn g2ScalarMulBytes(result: *[192]u8, k: []const u8, p: *const [192]u8) void {
     @memset(result, 0);
     if (std.mem.allEqual(u8, k, 0)) return;
     var cur: [192]u8 align(8) = p.*;
-    for (0..256) |i| {
+    for (0..k.len * 8) |i| {
         const byte_idx = i / 8;
         const bit_idx: u3 = @intCast(i % 8);
         if ((k[byte_idx] >> bit_idx) & 1 == 1) {
@@ -655,6 +665,287 @@ fn g2InSubgroup(p: *const [192]u8) bool {
     return g2IsInfinity(&t);
 }
 
+// ── Map to curve (EIP-2537 MAP_FP_TO_G1 / MAP_FP2_TO_G2) ──────────────────────
+//
+// RFC 9380 simplified SWU onto an isogenous curve, the isogeny back to
+// BLS12-381, then cofactor clearing. Mirrors py_ecc (py_ecc.bls.hash_to_curve
+// map_to_curve_G1/G2 + clear_cofactor_G1/G2), the library EELS uses, step for
+// step; constants are generated from it into bls12_381_map_constants.zig.
+// SWU and the isogeny work in homogeneous projective coordinates (x/z, y/z).
+
+const mc = @import("bls12_381_map_constants.zig");
+
+const ONE_FP2: Fp2 align(8) = ONE_FQ ++ ZERO_FQ;
+const ZERO_FP2: Fp2 align(8) = .{0} ** 96;
+
+inline fn divFq(out: *Fq, a: *const Fq, b: *const Fq) void {
+    asm volatile (".insn r 0x2b, 0, 51, %[rd], %[rs1], %[rs2]"
+        :
+        : [rd] "r" (@intFromPtr(out)),
+          [rs1] "r" (@intFromPtr(a)),
+          [rs2] "r" (@intFromPtr(b)),
+        : .{ .memory = true });
+}
+
+fn fqIsZero(a: *const Fq) bool {
+    return std.mem.allEqual(u8, a, 0);
+}
+
+/// RFC 9380 sgn0 for Fp: parity of the canonical value.
+fn fqSgn0(a: *const Fq) u1 {
+    return @truncate(a[0]);
+}
+
+/// RFC 9380 sgn0 for Fp2 (m = 2).
+fn fp2Sgn0(a: *const Fp2) u1 {
+    const sign_0: u1 = @truncate(a[0]);
+    const zero_0: u1 = @intFromBool(std.mem.allEqual(u8, a[0..48], 0));
+    const sign_1: u1 = @truncate(a[48]);
+    return sign_0 | (zero_0 & sign_1);
+}
+
+/// out = base^exp, exp little-endian.
+fn fqPow(out: *Fq, base: *const Fq, exp: []const u8) void {
+    var result: Fq align(8) = ONE_FQ;
+    var b: Fq align(8) = base.*;
+    for (exp) |byte| {
+        for (0..8) |bit| {
+            if ((byte >> @intCast(bit)) & 1 == 1) mulFq(&result, &result, &b);
+            mulFq(&b, &b, &b);
+        }
+    }
+    out.* = result;
+}
+
+/// out = base^exp, exp little-endian.
+fn fp2Pow(out: *Fp2, base: *const Fp2, exp: []const u8) void {
+    var result: Fp2 align(8) = ONE_FP2;
+    var b: Fp2 align(8) = base.*;
+    for (exp) |byte| {
+        for (0..8) |bit| {
+            if ((byte >> @intCast(bit)) & 1 == 1) mulFp2(&result, &result, &b);
+            mulFp2(&b, &b, &b);
+        }
+    }
+    out.* = result;
+}
+
+/// py_ecc optimized_swu_G1: t ↦ (x, y, z) on the 11-isogenous curve.
+fn swuG1(t: *const Fq, ox: *Fq, oy: *Fq, oz: *Fq) void {
+    var t2: Fq align(8) = undefined;
+    var zt2: Fq align(8) = undefined;
+    var temp: Fq align(8) = undefined;
+    var den: Fq align(8) = undefined;
+    var num: Fq align(8) = undefined;
+    mulFq(&t2, t, t);
+    mulFq(&zt2, &mc.ISO_11_Z, &t2);
+    mulFq(&temp, &zt2, &zt2);
+    addFq(&temp, &zt2, &temp); // Z·t² + Z²·t⁴
+    mulFq(&den, &mc.ISO_11_A, &temp);
+    subFq(&den, &ZERO_FQ, &den); // −A·(Z·t² + Z²·t⁴)
+    addFq(&temp, &temp, &ONE_FQ);
+    mulFq(&num, &mc.ISO_11_B, &temp); // B·(Z·t² + Z²·t⁴ + 1)
+    if (fqIsZero(&den)) mulFq(&den, &mc.ISO_11_Z, &mc.ISO_11_A);
+
+    // v = D³, u = N³ + A·N·D² + B·D³
+    var den2: Fq align(8) = undefined;
+    var v: Fq align(8) = undefined;
+    var u: Fq align(8) = undefined;
+    var tmp: Fq align(8) = undefined;
+    mulFq(&den2, &den, &den);
+    mulFq(&v, &den2, &den);
+    mulFq(&u, &num, &num);
+    mulFq(&u, &u, &num);
+    mulFq(&tmp, &mc.ISO_11_A, &num);
+    mulFq(&tmp, &tmp, &den2);
+    addFq(&u, &u, &tmp);
+    mulFq(&tmp, &mc.ISO_11_B, &v);
+    addFq(&u, &u, &tmp);
+
+    // sqrt_division_FQ: y = uv·(uv·v²)^((p−3)/4); a root iff y²·v = u.
+    var uv: Fq align(8) = undefined;
+    var y: Fq align(8) = undefined;
+    mulFq(&uv, &u, &v);
+    mulFq(&tmp, &v, &v);
+    mulFq(&tmp, &uv, &tmp);
+    fqPow(&tmp, &tmp, &mc.P_MINUS_3_DIV_4);
+    mulFq(&y, &uv, &tmp);
+    mulFq(&tmp, &y, &y);
+    mulFq(&tmp, &tmp, &v);
+    subFq(&tmp, &tmp, &u);
+    if (!fqIsZero(&tmp)) {
+        mulFq(&tmp, &t2, t);
+        mulFq(&y, &y, &tmp);
+        mulFq(&y, &y, &mc.SQRT_MINUS_11_CUBED);
+        mulFq(&num, &num, &zt2);
+    }
+
+    if (fqSgn0(t) != fqSgn0(&y)) subFq(&y, &ZERO_FQ, &y);
+    mulFq(&y, &y, &den);
+    ox.* = num;
+    oy.* = y;
+    oz.* = den;
+}
+
+/// Horner evaluation of one isogeny polynomial, as py_ecc iso_map_G1/G2 does:
+/// k[last] then, for j = 0.., acc = acc·x + z^(j+1)·k[last−1−j].
+fn hornerFq(out: *Fq, k: []const [48]u8, x: *const Fq, z_pows: []const Fq) void {
+    var term: Fq align(8) = undefined;
+    out.* = k[k.len - 1];
+    for (0..k.len - 1) |j| {
+        mulFq(out, out, x);
+        mulFq(&term, &z_pows[j], &k[k.len - 2 - j]);
+        addFq(out, out, &term);
+    }
+}
+
+fn hornerFp2(out: *Fp2, k: []const [96]u8, x: *const Fp2, z_pows: []const Fp2) void {
+    var term: Fp2 align(8) = undefined;
+    out.* = k[k.len - 1];
+    for (0..k.len - 1) |j| {
+        mulFp2(out, out, x);
+        mulFp2(&term, &z_pows[j], &k[k.len - 2 - j]);
+        addFp2(out, out, &term);
+    }
+}
+
+/// py_ecc iso_map_G1: 11-isogeny to BLS12-381 G1.
+fn isoMapG1(x: *const Fq, y: *const Fq, z: *const Fq, ox: *Fq, oy: *Fq, oz: *Fq) void {
+    var z_pows: [15]Fq align(8) = undefined;
+    z_pows[0] = z.*;
+    for (1..z_pows.len) |i| mulFq(&z_pows[i], &z_pows[i - 1], z);
+
+    var x_num: Fq align(8) = undefined;
+    var x_den: Fq align(8) = undefined;
+    var y_num: Fq align(8) = undefined;
+    var y_den: Fq align(8) = undefined;
+    hornerFq(&x_num, &mc.ISO_11_X_NUM, x, &z_pows);
+    hornerFq(&x_den, &mc.ISO_11_X_DEN, x, &z_pows);
+    hornerFq(&y_num, &mc.ISO_11_Y_NUM, x, &z_pows);
+    hornerFq(&y_den, &mc.ISO_11_Y_DEN, x, &z_pows);
+    mulFq(&x_den, &x_den, z); // x-denominator is one degree lower
+    mulFq(&y_num, &y_num, y);
+    mulFq(&y_den, &y_den, z);
+
+    mulFq(oz, &x_den, &y_den);
+    mulFq(ox, &x_num, &y_den);
+    mulFq(oy, &x_den, &y_num);
+}
+
+/// py_ecc optimized_swu_G2: t ↦ (x, y, z) on the 3-isogenous curve.
+fn swuG2(t: *const Fp2, ox: *Fp2, oy: *Fp2, oz: *Fp2) void {
+    var t2: Fp2 align(8) = undefined;
+    var zt2: Fp2 align(8) = undefined;
+    var temp: Fp2 align(8) = undefined;
+    var den: Fp2 align(8) = undefined;
+    var num: Fp2 align(8) = undefined;
+    mulFp2(&t2, t, t);
+    mulFp2(&zt2, &mc.ISO_3_Z, &t2);
+    mulFp2(&temp, &zt2, &zt2);
+    addFp2(&temp, &zt2, &temp); // Z·t² + Z²·t⁴
+    mulFp2(&den, &mc.ISO_3_A, &temp);
+    subFp2(&den, &ZERO_FP2, &den); // −A·(Z·t² + Z²·t⁴)
+    addFp2(&temp, &temp, &ONE_FP2);
+    mulFp2(&num, &mc.ISO_3_B, &temp); // B·(Z·t² + Z²·t⁴ + 1)
+    if (fp2IsZero(&den)) mulFp2(&den, &mc.ISO_3_Z, &mc.ISO_3_A);
+
+    // v = D³, u = N³ + A·N·D² + B·D³
+    var den2: Fp2 align(8) = undefined;
+    var v: Fp2 align(8) = undefined;
+    var u: Fp2 align(8) = undefined;
+    var tmp: Fp2 align(8) = undefined;
+    mulFp2(&den2, &den, &den);
+    mulFp2(&v, &den2, &den);
+    mulFp2(&u, &num, &num);
+    mulFp2(&u, &u, &num);
+    mulFp2(&tmp, &mc.ISO_3_A, &num);
+    mulFp2(&tmp, &tmp, &den2);
+    addFp2(&u, &u, &tmp);
+    mulFp2(&tmp, &mc.ISO_3_B, &v);
+    addFp2(&u, &u, &tmp);
+
+    // sqrt_division_FQ2: gamma = uv⁷·(uv¹⁵)^((p²−9)/16); a root is
+    // root·gamma for the first eighth root of unity with (root·gamma)²·v = u.
+    var v2: Fp2 align(8) = undefined;
+    var v4: Fp2 align(8) = undefined;
+    var v7: Fp2 align(8) = undefined;
+    var v8: Fp2 align(8) = undefined;
+    var temp1: Fp2 align(8) = undefined;
+    var gamma: Fp2 align(8) = undefined;
+    mulFp2(&v2, &v, &v);
+    mulFp2(&v4, &v2, &v2);
+    mulFp2(&v7, &v4, &v2);
+    mulFp2(&v7, &v7, &v);
+    mulFp2(&v8, &v4, &v4);
+    mulFp2(&temp1, &u, &v7);
+    mulFp2(&tmp, &temp1, &v8);
+    fp2Pow(&gamma, &tmp, &mc.P_MINUS_9_DIV_16);
+    mulFp2(&gamma, &gamma, &temp1);
+
+    var y: Fp2 align(8) = gamma;
+    var success = false;
+    var cand: Fp2 align(8) = undefined;
+    for (&mc.POSITIVE_EIGHTH_ROOTS_OF_UNITY) |*root| {
+        mulFp2(&cand, root, &gamma);
+        mulFp2(&tmp, &cand, &cand);
+        mulFp2(&tmp, &tmp, &v);
+        subFp2(&tmp, &tmp, &u);
+        if (fp2IsZero(&tmp) and !success) {
+            success = true;
+            y = cand;
+        }
+    }
+
+    // Not a square: try x1 = Z·t²·x0, whose root is eta·sqrt_candidate·t³.
+    var sqrt_candidate: Fp2 align(8) = undefined;
+    mulFp2(&tmp, &t2, t);
+    mulFp2(&sqrt_candidate, &y, &tmp);
+    var u_x1: Fp2 align(8) = undefined;
+    mulFp2(&tmp, &zt2, &zt2);
+    mulFp2(&tmp, &tmp, &zt2);
+    mulFp2(&u_x1, &tmp, &u); // Z³·t⁶·u
+    var success_2 = false;
+    for (&mc.ETAS) |*eta| {
+        mulFp2(&cand, eta, &sqrt_candidate);
+        mulFp2(&tmp, &cand, &cand);
+        mulFp2(&tmp, &tmp, &v);
+        subFp2(&tmp, &tmp, &u_x1);
+        if (fp2IsZero(&tmp) and !success and !success_2) {
+            y = cand;
+            success_2 = true;
+        }
+    }
+    if (!success) mulFp2(&num, &num, &zt2);
+
+    if (fp2Sgn0(t) != fp2Sgn0(&y)) subFp2(&y, &ZERO_FP2, &y);
+    mulFp2(&y, &y, &den);
+    ox.* = num;
+    oy.* = y;
+    oz.* = den;
+}
+
+/// py_ecc iso_map_G2: 3-isogeny to BLS12-381 G2.
+fn isoMapG2(x: *const Fp2, y: *const Fp2, z: *const Fp2, ox: *Fp2, oy: *Fp2, oz: *Fp2) void {
+    var z_pows: [3]Fp2 align(8) = undefined;
+    z_pows[0] = z.*;
+    for (1..z_pows.len) |i| mulFp2(&z_pows[i], &z_pows[i - 1], z);
+
+    var x_num: Fp2 align(8) = undefined;
+    var x_den: Fp2 align(8) = undefined;
+    var y_num: Fp2 align(8) = undefined;
+    var y_den: Fp2 align(8) = undefined;
+    hornerFp2(&x_num, &mc.ISO_3_X_NUM, x, &z_pows);
+    hornerFp2(&x_den, &mc.ISO_3_X_DEN, x, &z_pows);
+    hornerFp2(&y_num, &mc.ISO_3_Y_NUM, x, &z_pows);
+    hornerFp2(&y_den, &mc.ISO_3_Y_DEN, x, &z_pows);
+    mulFp2(&y_num, &y_num, y);
+    mulFp2(&y_den, &y_den, z);
+
+    mulFp2(oz, &x_den, &y_den);
+    mulFp2(ox, &x_num, &y_den);
+    mulFp2(oy, &x_den, &y_num);
+}
+
 // ── Public interface ───────────────────────────────────────────────────────────
 
 /// EIP-2537 G1 point addition: inputs are 96-byte big-endian (x||y); identity = (0,0).
@@ -767,6 +1058,66 @@ pub fn g2Msm(pairs: anytype, result: *[192]u8) bool {
     }
 
     g2InternalToExternal(&acc, result);
+    return true;
+}
+
+/// EIP-2537 MAP_FP_TO_G1: field_element is 48-byte big-endian; result is x||y
+/// (48-byte big-endian each), all-zero for the identity. False if not < p.
+pub fn mapFpToG1(field_element: *const [48]u8, result: *[96]u8) bool {
+    setupOnce();
+    var t: Fq align(8) = fqBeToLe(field_element);
+    if (!fqIsCanonical(&t)) return false;
+
+    var x: Fq align(8) = undefined;
+    var y: Fq align(8) = undefined;
+    var z: Fq align(8) = undefined;
+    swuG1(&t, &x, &y, &z);
+    var ix: Fq align(8) = undefined;
+    var iy: Fq align(8) = undefined;
+    var iz: Fq align(8) = undefined;
+    isoMapG1(&x, &y, &z, &ix, &iy, &iz);
+
+    var p: [96]u8 align(8) = .{0} ** 96;
+    if (!fqIsZero(&iz)) {
+        divFq(p[0..48], &ix, &iz);
+        divFq(p[48..96], &iy, &iz);
+    }
+    var cleared: [96]u8 align(8) = undefined;
+    g1ScalarMulBytes(&cleared, &mc.H_EFF_G1, &p);
+
+    result[0..48].* = fqLeToBe(cleared[0..48]);
+    result[48..96].* = fqLeToBe(cleared[48..96]);
+    return true;
+}
+
+/// EIP-2537 MAP_FP2_TO_G2: field_element is c0||c1 (48-byte big-endian each);
+/// result uses the external G2 format, all-zero for the identity. False if
+/// either coordinate is not < p.
+pub fn mapFp2ToG2(field_element: *const [96]u8, result: *[192]u8) bool {
+    setupOnce();
+    var t: Fp2 align(8) = undefined;
+    t[0..48].* = fqBeToLe(field_element[0..48]);
+    t[48..96].* = fqBeToLe(field_element[48..96]);
+    if (!fqIsCanonical(t[0..48]) or !fqIsCanonical(t[48..96])) return false;
+
+    var x: Fp2 align(8) = undefined;
+    var y: Fp2 align(8) = undefined;
+    var z: Fp2 align(8) = undefined;
+    swuG2(&t, &x, &y, &z);
+    var ix: Fp2 align(8) = undefined;
+    var iy: Fp2 align(8) = undefined;
+    var iz: Fp2 align(8) = undefined;
+    isoMapG2(&x, &y, &z, &ix, &iy, &iz);
+
+    var p: [192]u8 align(8) = .{0} ** 192;
+    if (!fp2IsZero(&iz)) {
+        divFp2(p[0..96], &ix, &iz);
+        divFp2(p[96..192], &iy, &iz);
+    }
+    var cleared: [192]u8 align(8) = undefined;
+    g2ScalarMulBytes(&cleared, &mc.H_EFF_G2, &p);
+
+    g2InternalToExternal(&cleared, result);
     return true;
 }
 
