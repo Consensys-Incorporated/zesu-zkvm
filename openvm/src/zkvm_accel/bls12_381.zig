@@ -13,7 +13,7 @@
 ///
 /// External point formats (big-endian, EIP-2537):
 ///   G1: x_BE[48] || y_BE[48]   = 96 bytes
-///   G2: x_c1_BE[48] || x_c0_BE[48] || y_c1_BE[48] || y_c0_BE[48] = 192 bytes
+///   G2: x_c0_BE[48] || x_c1_BE[48] || y_c0_BE[48] || y_c1_BE[48] = 192 bytes
 ///
 /// Curves: G1: y²=x³+4  G2: y²=x³+(4+4i) over Fp2
 ///
@@ -336,16 +336,6 @@ fn fqIsCanonical(v: *const Fq) bool {
     return false;
 }
 
-fn frIsCanonical(v: *const Fr) bool {
-    var i: usize = 32;
-    while (i > 0) {
-        i -= 1;
-        if (v[i] < FR_LE[i]) return true;
-        if (v[i] > FR_LE[i]) return false;
-    }
-    return false;
-}
-
 fn g1IsInfinity(p: *const [96]u8) bool {
     const words: *const [12]u64 = @ptrCast(@alignCast(p));
     for (words) |w| if (w != 0) return false;
@@ -633,29 +623,37 @@ fn hintBufferChunked(buf: [*]u8, num_dwords: usize) void {
 
 // ── G2 external ↔ internal coordinate conversion ─────────────────────────────
 //
-// EIP-2537 external G2 format: [x_c1_BE(48) || x_c0_BE(48) || y_c1_BE(48) || y_c0_BE(48)]
+// EIP-2537 external G2 format: [x_c0_BE(48) || x_c1_BE(48) || y_c0_BE(48) || y_c1_BE(48)]
 // Internal G2 format:          [x_c0_LE(48) || x_c1_LE(48) || y_c0_LE(48) || y_c1_LE(48)]
+//
+// EIP-2537 encodes an Fp2 element as c0 || c1, so each 48-byte coordinate only
+// changes endianness.
 
 fn g2ExternalToInternal(ext: *const [192]u8, internal: *[192]u8) void {
-    // x_c1 at ext[0..48] → internal[48..96] (LE)
-    for (0..48) |i| internal[48 + i] = ext[47 - i];
-    // x_c0 at ext[48..96] → internal[0..48] (LE)
-    for (0..48) |i| internal[i] = ext[48 + 47 - i];
-    // y_c1 at ext[96..144] → internal[144..192] (LE)
-    for (0..48) |i| internal[144 + i] = ext[96 + 47 - i];
-    // y_c0 at ext[144..192] → internal[96..144] (LE)
-    for (0..48) |i| internal[96 + i] = ext[144 + 47 - i];
+    for (0..4) |c| {
+        for (0..48) |i| internal[c * 48 + i] = ext[c * 48 + 47 - i];
+    }
 }
 
 fn g2InternalToExternal(internal: *const [192]u8, ext: *[192]u8) void {
-    // internal[48..96] (x_c1_LE) → ext[0..48] (BE)
-    for (0..48) |i| ext[i] = internal[48 + 47 - i];
-    // internal[0..48] (x_c0_LE) → ext[48..96] (BE)
-    for (0..48) |i| ext[48 + i] = internal[47 - i];
-    // internal[144..192] (y_c1_LE) → ext[96..144] (BE)
-    for (0..48) |i| ext[96 + i] = internal[144 + 47 - i];
-    // internal[96..144] (y_c0_LE) → ext[144..192] (BE)
-    for (0..48) |i| ext[144 + i] = internal[96 + 47 - i];
+    for (0..4) |c| {
+        for (0..48) |i| ext[c * 48 + i] = internal[c * 48 + 47 - i];
+    }
+}
+
+// EIP-2537 requires MSM (and pairing) inputs to be in the r-order subgroup:
+// [r]P = O. The identity is in the subgroup.
+
+fn g1InSubgroup(p: *const [96]u8) bool {
+    var t: [96]u8 align(8) = undefined;
+    g1ScalarMul(&t, &FR_LE, p);
+    return g1IsInfinity(&t);
+}
+
+fn g2InSubgroup(p: *const [192]u8) bool {
+    var t: [192]u8 align(8) = undefined;
+    g2ScalarMul(&t, &FR_LE, p);
+    return g2IsInfinity(&t);
 }
 
 // ── Public interface ───────────────────────────────────────────────────────────
@@ -704,9 +702,10 @@ pub fn g1Msm(pairs: anytype, result: *[96]u8) bool {
         var p_buf: [96]u8 align(8) = undefined;
         @memcpy(p_buf[0..48], &px);
         @memcpy(p_buf[48..96], &py);
+        if (!g1InSubgroup(&p_buf)) return false;
 
+        // EIP-2537 takes any 32-byte scalar; k >= r yields (k mod r)·P.
         const k_le = frBeToLe(sc);
-        if (!frIsCanonical(&k_le)) return false;
         var term: [96]u8 align(8) = undefined;
         g1ScalarMul(&term, &k_le, &p_buf);
         g1PointAddInPlace(&acc, &term);
@@ -719,7 +718,7 @@ pub fn g1Msm(pairs: anytype, result: *[96]u8) bool {
     return true;
 }
 
-/// EIP-2537 G2 point addition: inputs are 192-byte (x_c1||x_c0||y_c1||y_c0, each 48 bytes BE).
+/// EIP-2537 G2 point addition: inputs are 192-byte (x_c0||x_c1||y_c0||y_c1, each 48 bytes BE).
 pub fn g2Add(p1: *const [192]u8, p2: *const [192]u8, result: *[192]u8) bool {
     setupOnce();
 
@@ -759,9 +758,10 @@ pub fn g2Msm(pairs: anytype, result: *[192]u8) bool {
         const px: *const Fp2 = @ptrCast(p_internal[0..96]);
         const py: *const Fp2 = @ptrCast(p_internal[96..192]);
         if (!g2IsOnCurveOrIdentity(px, py)) return false;
+        if (!g2InSubgroup(&p_internal)) return false;
 
+        // EIP-2537 takes any 32-byte scalar; k >= r yields (k mod r)·P.
         const k_le = frBeToLe(sc);
-        if (!frIsCanonical(&k_le)) return false;
         var term: [192]u8 align(8) = undefined;
         g2ScalarMul(&term, &k_le, &p_internal);
         g2PointAddInPlace(&acc, &term);
