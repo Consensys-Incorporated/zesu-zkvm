@@ -189,9 +189,7 @@ pub fn bn254_g1_mul(point: *const [64]u8, scalar_: *const [32]u8, result: *[64]u
 }
 
 pub fn bn254_pairing(pairs: anytype, verified: *bool) bool {
-    _ = pairs;
-    verified.* = false;
-    return false;
+    return bn254_impl.pairingCheck(pairs, verified);
 }
 
 pub fn blake2f(rounds: u32, h: *[64]u8, m: *const [128]u8, t: *const [16]u8, f: u8) bool {

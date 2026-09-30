@@ -650,21 +650,11 @@ fn g2InSubgroup(p: *const [192]u8) bool {
 
 extern fn zesu_openvm_bls12_381_pairing_check(g1: [*]const u8, g2: [*]const u8, n: usize) u8;
 
-// Shared bump heap (openvm_host.zig); zesu's allocator and the Rust library
-// take fresh memory the same way.
-extern var ZKVM_HEAP_POS: usize;
-extern var ZKVM_HEAP_TOP: usize;
-
-fn heapAlloc(bytes: usize) ?[*]u8 {
-    const start = std.mem.alignForward(usize, ZKVM_HEAP_POS, 8);
-    if (start + bytes > ZKVM_HEAP_TOP) return null;
-    ZKVM_HEAP_POS = start + bytes;
-    return @ptrFromInt(start);
-}
+const heap = @import("heap.zig");
 
 fn pairingCheckPoints(g1s: []const *const [96]u8, g2s: []const *const [192]u8, verified: *bool) bool {
-    const g1 = heapAlloc(g1s.len * 96) orelse return false;
-    const g2 = heapAlloc(g2s.len * 192) orelse return false;
+    const g1 = heap.alloc(g1s.len * 96) orelse return false;
+    const g2 = heap.alloc(g2s.len * 192) orelse return false;
     var n: usize = 0;
     for (g1s, g2s) |p, q| {
         if (g1IsInfinity(p) or g2IsInfinity(q)) continue;
@@ -796,12 +786,12 @@ pub fn g2Msm(pairs: anytype, result: *[192]u8) bool {
 /// curve or outside the r-order subgroup; otherwise sets `verified`.
 pub fn pairingCheck(pairs: anytype, verified: *bool) bool {
     setupOnce();
-    const g1s = heapAlloc(pairs.len * @sizeOf(*const [96]u8)) orelse return false;
-    const g2s = heapAlloc(pairs.len * @sizeOf(*const [192]u8)) orelse return false;
+    const g1s = heap.alloc(pairs.len * @sizeOf(*const [96]u8)) orelse return false;
+    const g2s = heap.alloc(pairs.len * @sizeOf(*const [192]u8)) orelse return false;
     const g1_ptrs: [*]*const [96]u8 = @ptrCast(@alignCast(g1s));
     const g2_ptrs: [*]*const [192]u8 = @ptrCast(@alignCast(g2s));
-    const g1_buf = heapAlloc(pairs.len * 96) orelse return false;
-    const g2_buf = heapAlloc(pairs.len * 192) orelse return false;
+    const g1_buf = heap.alloc(pairs.len * 96) orelse return false;
+    const g2_buf = heap.alloc(pairs.len * 192) orelse return false;
 
     for (pairs, 0..) |*pair, i| {
         const p: *[96]u8 = @ptrCast(@alignCast(g1_buf + i * 96));

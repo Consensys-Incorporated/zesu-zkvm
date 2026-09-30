@@ -13,7 +13,7 @@ path = "src/lib.rs"
 openvm = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90", default-features = false }
 openvm-algebra-guest = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90" }
 openvm-ecc-guest = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90" }
-openvm-pairing = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90", features = ["bls12_381"] }
+openvm-pairing = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90", features = ["bls12_381", "bn254"] }
 
 [profile.release]
 panic = "abort"

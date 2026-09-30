@@ -16,6 +16,7 @@ use openvm_algebra_guest::{field::FieldExtension, IntMod};
 use openvm_ecc_guest::AffinePoint;
 use openvm_pairing::{
     bls12_381::{Bls12_381, Fp, Fp2},
+    bn254::{Bn254, Fp as BnFp, Fp2 as BnFp2},
     PairingCheck,
 };
 
@@ -78,4 +79,30 @@ pub unsafe extern "C" fn zesu_openvm_bls12_381_pairing_check(
         .map(|c| AffinePoint::new(Fp2::from_bytes(&c[..96]), Fp2::from_bytes(&c[96..])))
         .collect();
     Bls12_381::pairing_check(&p, &q).is_ok() as u8
+}
+
+/// BN254 multi-pairing check: returns 1 iff prod e(P_i, Q_i) == 1.
+///
+/// `g1` holds `n` points as x || y (32-byte little-endian each); `g2` holds `n`
+/// points as x_c0 || x_c1 || y_c0 || y_c1 (32-byte little-endian each). An
+/// empty product (`n == 0`) is 1.
+///
+/// # Safety
+/// `g1` and `g2` must point to `n * 64` and `n * 128` readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn zesu_openvm_bn254_pairing_check(g1: *const u8, g2: *const u8, n: usize) -> u8 {
+    if n == 0 {
+        return 1;
+    }
+    let g1 = core::slice::from_raw_parts(g1, n * 64);
+    let g2 = core::slice::from_raw_parts(g2, n * 128);
+    let p: alloc::vec::Vec<AffinePoint<BnFp>> = g1
+        .chunks_exact(64)
+        .map(|c| AffinePoint::new(BnFp::from_le_bytes_unchecked(&c[..32]), BnFp::from_le_bytes_unchecked(&c[32..])))
+        .collect();
+    let q: alloc::vec::Vec<AffinePoint<BnFp2>> = g2
+        .chunks_exact(128)
+        .map(|c| AffinePoint::new(BnFp2::from_bytes(&c[..64]), BnFp2::from_bytes(&c[64..])))
+        .collect();
+    Bn254::pairing_check(&p, &q).is_ok() as u8
 }
