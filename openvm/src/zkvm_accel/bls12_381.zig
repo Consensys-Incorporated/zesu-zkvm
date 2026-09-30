@@ -3,16 +3,17 @@
 /// mod_idx=6  → BLS12-381 Fq (base field prime)     (opcode=0x2b, funct3=0, funct7=mod_idx*8+op)
 /// mod_idx=7  → BLS12-381 Fr (scalar field order)
 /// curve_idx=3 → BLS12-381 G1                        (opcode=0x2b, funct3=1, funct7=curve_idx*8+op)
-/// fp2_idx=0  → BLS12-381 Fp2 (Fq²)                 (opcode=0x2b, funct3=2, funct7=fp2_idx*8+op)
+/// fp2_idx=1  → BLS12-381 Fp2 (Fq²)                 (opcode=0x2b, funct3=2, funct7=fp2_idx*8+op)
 ///
-/// Index assignments assume:
-///   supported_moduli = [secp256k1.p, secp256k1.n, bn254.p, bn254.r, p256.p, p256.n, bls.Fq, bls.Fr]
-///   supported_curves = [secp256k1, bn254_G1, p256, bls_G1]
-///   fp2_moduli       = [bls.Fq]
+/// Indices follow openvm's SdkVmConfig::standard(), the config eth-act/ere executes with:
+///   supported_moduli = [bn254.p, bn254.r, secp256k1.p, secp256k1.n, p256.p, p256.n, bls.Fq, bls.Fr]
+///   supported_curves = [bn254_G1, secp256k1, p256, bls_G1]
+///   fp2_moduli       = [bn254.Fp2, bls.Fq2]
+///   pairing_curves   = [bn254, bls12_381]
 ///
 /// External point formats (big-endian, EIP-2537):
 ///   G1: x_BE[48] || y_BE[48]   = 96 bytes
-///   G2: x_c1_BE[48] || x_c0_BE[48] || y_c1_BE[48] || y_c0_BE[48] = 192 bytes
+///   G2: x_c0_BE[48] || x_c1_BE[48] || y_c0_BE[48] || y_c1_BE[48] = 192 bytes
 ///
 /// Curves: G1: y²=x³+4  G2: y²=x³+(4+4i) over Fp2
 ///
@@ -208,14 +209,14 @@ fn setupOnce() void {
           [rs1] "r" (fr_ptr),
         : .{ .memory = true });
 
-    // Fp2 SETUP_ADDSUB for fp2_idx=0: funct3=2, funct7 = 0*8+4 = 4, rs2=x0
-    asm volatile (".insn r 0x2b, 2, 4, %[rd], %[rs1], x0"
+    // Fp2 SETUP_ADDSUB for fp2_idx=1: funct3=2, funct7 = 1*8+4 = 12, rs2=x0
+    asm volatile (".insn r 0x2b, 2, 12, %[rd], %[rs1], x0"
         :
         : [rd] "r" (@intFromPtr(&uninit_fp2)),
           [rs1] "r" (fq_ptr),
         : .{ .memory = true });
-    // Fp2 SETUP_MULDIV for fp2_idx=0: funct7=4, rs2=x1
-    asm volatile (".insn r 0x2b, 2, 4, %[rd], %[rs1], x1"
+    // Fp2 SETUP_MULDIV for fp2_idx=1: funct7=12, rs2=x1
+    asm volatile (".insn r 0x2b, 2, 12, %[rd], %[rs1], x1"
         :
         : [rd] "r" (@intFromPtr(&uninit_fp2)),
           [rs1] "r" (fq_ptr),
@@ -285,10 +286,10 @@ inline fn subFq(out: *Fq, a: *const Fq, b: *const Fq) void {
         : .{ .memory = true });
 }
 
-// ── Fp2 arithmetic (fp2_idx=0, funct3=2, funct7 = 0*8+base) ─────────────────
+// ── Fp2 arithmetic (fp2_idx=1, funct3=2, funct7 = 1*8+base) ─────────────────
 
 inline fn addFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 0, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 8, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -297,7 +298,7 @@ inline fn addFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
 }
 
 inline fn subFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 1, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 9, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -306,7 +307,7 @@ inline fn subFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
 }
 
 inline fn mulFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 2, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 10, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -315,7 +316,7 @@ inline fn mulFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
 }
 
 inline fn divFp2(out: *Fp2, a: *const Fp2, b: *const Fp2) void {
-    asm volatile (".insn r 0x2b, 2, 3, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 2, 11, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -331,16 +332,6 @@ fn fqIsCanonical(v: *const Fq) bool {
         i -= 1;
         if (v[i] < FQ_LE[i]) return true;
         if (v[i] > FQ_LE[i]) return false;
-    }
-    return false;
-}
-
-fn frIsCanonical(v: *const Fr) bool {
-    var i: usize = 32;
-    while (i > 0) {
-        i -= 1;
-        if (v[i] < FR_LE[i]) return true;
-        if (v[i] > FR_LE[i]) return false;
     }
     return false;
 }
@@ -614,47 +605,75 @@ fn decompressG1(compressed: *const [48]u8, out: *[96]u8) bool {
     return true;
 }
 
-fn hintBufferChunked(buf: [*]u8, num_dwords: usize) void {
-    const MAX_CHUNK: usize = 1023;
-    var remaining = num_dwords;
-    var ptr = buf;
-    while (remaining > 0) {
-        const chunk = if (remaining > MAX_CHUNK) MAX_CHUNK else remaining;
-        asm volatile (".insn i 0x0b, 1, %[rd], %[rs1], 1"
-            :
-            : [rd] "r" (@intFromPtr(ptr)),
-              [rs1] "r" (chunk),
-            : .{ .memory = true });
-        ptr = ptr + chunk * 8;
-        remaining -= chunk;
+// ── G2 external ↔ internal coordinate conversion ─────────────────────────────
+//
+// EIP-2537 external G2 format: [x_c0_BE(48) || x_c1_BE(48) || y_c0_BE(48) || y_c1_BE(48)]
+// Internal G2 format:          [x_c0_LE(48) || x_c1_LE(48) || y_c0_LE(48) || y_c1_LE(48)]
+//
+// EIP-2537 encodes an Fp2 element as c0 || c1, so each 48-byte coordinate only
+// changes endianness.
+
+fn g2ExternalToInternal(ext: *const [192]u8, internal: *[192]u8) void {
+    for (0..4) |c| {
+        for (0..48) |i| internal[c * 48 + i] = ext[c * 48 + 47 - i];
     }
 }
 
-// ── G2 external ↔ internal coordinate conversion ─────────────────────────────
-//
-// EIP-2537 external G2 format: [x_c1_BE(48) || x_c0_BE(48) || y_c1_BE(48) || y_c0_BE(48)]
-// Internal G2 format:          [x_c0_LE(48) || x_c1_LE(48) || y_c0_LE(48) || y_c1_LE(48)]
-
-fn g2ExternalToInternal(ext: *const [192]u8, internal: *[192]u8) void {
-    // x_c1 at ext[0..48] → internal[48..96] (LE)
-    for (0..48) |i| internal[48 + i] = ext[47 - i];
-    // x_c0 at ext[48..96] → internal[0..48] (LE)
-    for (0..48) |i| internal[i] = ext[48 + 47 - i];
-    // y_c1 at ext[96..144] → internal[144..192] (LE)
-    for (0..48) |i| internal[144 + i] = ext[96 + 47 - i];
-    // y_c0 at ext[144..192] → internal[96..144] (LE)
-    for (0..48) |i| internal[96 + i] = ext[144 + 47 - i];
+fn g2InternalToExternal(internal: *const [192]u8, ext: *[192]u8) void {
+    for (0..4) |c| {
+        for (0..48) |i| ext[c * 48 + i] = internal[c * 48 + 47 - i];
+    }
 }
 
-fn g2InternalToExternal(internal: *const [192]u8, ext: *[192]u8) void {
-    // internal[48..96] (x_c1_LE) → ext[0..48] (BE)
-    for (0..48) |i| ext[i] = internal[48 + 47 - i];
-    // internal[0..48] (x_c0_LE) → ext[48..96] (BE)
-    for (0..48) |i| ext[48 + i] = internal[47 - i];
-    // internal[144..192] (y_c1_LE) → ext[96..144] (BE)
-    for (0..48) |i| ext[96 + i] = internal[144 + 47 - i];
-    // internal[96..144] (y_c0_LE) → ext[144..192] (BE)
-    for (0..48) |i| ext[144 + i] = internal[96 + 47 - i];
+// EIP-2537 requires MSM (and pairing) inputs to be in the r-order subgroup:
+// [r]P = O. The identity is in the subgroup.
+
+fn g1InSubgroup(p: *const [96]u8) bool {
+    var t: [96]u8 align(8) = undefined;
+    g1ScalarMul(&t, &FR_LE, p);
+    return g1IsInfinity(&t);
+}
+
+fn g2InSubgroup(p: *const [192]u8) bool {
+    var t: [192]u8 align(8) = undefined;
+    g2ScalarMul(&t, &FR_LE, p);
+    return g2IsInfinity(&t);
+}
+
+// ── Pairing check (OpenVM's pairing library, linked from openvm/pairing) ────
+//
+// The multi-Miller loop and the hinted final exponentiation come from
+// openvm-pairing (Rust), OpenVM's own guest library.
+// It takes internal-format points and assumes they are valid and not the
+// identity, so callers validate first and pairingCheckPoints drops the
+// identity pairs, which contribute 1 to the product.
+
+extern fn zesu_openvm_bls12_381_pairing_check(g1: [*]const u8, g2: [*]const u8, n: usize) u8;
+
+// Shared bump heap (openvm_host.zig); zesu's allocator and the Rust library
+// take fresh memory the same way.
+extern var ZKVM_HEAP_POS: usize;
+extern var ZKVM_HEAP_TOP: usize;
+
+fn heapAlloc(bytes: usize) ?[*]u8 {
+    const start = std.mem.alignForward(usize, ZKVM_HEAP_POS, 8);
+    if (start + bytes > ZKVM_HEAP_TOP) return null;
+    ZKVM_HEAP_POS = start + bytes;
+    return @ptrFromInt(start);
+}
+
+fn pairingCheckPoints(g1s: []const *const [96]u8, g2s: []const *const [192]u8, verified: *bool) bool {
+    const g1 = heapAlloc(g1s.len * 96) orelse return false;
+    const g2 = heapAlloc(g2s.len * 192) orelse return false;
+    var n: usize = 0;
+    for (g1s, g2s) |p, q| {
+        if (g1IsInfinity(p) or g2IsInfinity(q)) continue;
+        @memcpy(g1[n * 96 ..][0..96], p);
+        @memcpy(g2[n * 192 ..][0..192], q);
+        n += 1;
+    }
+    verified.* = zesu_openvm_bls12_381_pairing_check(g1, g2, n) == 1;
+    return true;
 }
 
 // ── Public interface ───────────────────────────────────────────────────────────
@@ -703,9 +722,10 @@ pub fn g1Msm(pairs: anytype, result: *[96]u8) bool {
         var p_buf: [96]u8 align(8) = undefined;
         @memcpy(p_buf[0..48], &px);
         @memcpy(p_buf[48..96], &py);
+        if (!g1InSubgroup(&p_buf)) return false;
 
+        // EIP-2537 takes any 32-byte scalar; k >= r yields (k mod r)·P.
         const k_le = frBeToLe(sc);
-        if (!frIsCanonical(&k_le)) return false;
         var term: [96]u8 align(8) = undefined;
         g1ScalarMul(&term, &k_le, &p_buf);
         g1PointAddInPlace(&acc, &term);
@@ -718,7 +738,7 @@ pub fn g1Msm(pairs: anytype, result: *[96]u8) bool {
     return true;
 }
 
-/// EIP-2537 G2 point addition: inputs are 192-byte (x_c1||x_c0||y_c1||y_c0, each 48 bytes BE).
+/// EIP-2537 G2 point addition: inputs are 192-byte (x_c0||x_c1||y_c0||y_c1, each 48 bytes BE).
 pub fn g2Add(p1: *const [192]u8, p2: *const [192]u8, result: *[192]u8) bool {
     setupOnce();
 
@@ -758,9 +778,10 @@ pub fn g2Msm(pairs: anytype, result: *[192]u8) bool {
         const px: *const Fp2 = @ptrCast(p_internal[0..96]);
         const py: *const Fp2 = @ptrCast(p_internal[96..192]);
         if (!g2IsOnCurveOrIdentity(px, py)) return false;
+        if (!g2InSubgroup(&p_internal)) return false;
 
+        // EIP-2537 takes any 32-byte scalar; k >= r yields (k mod r)·P.
         const k_le = frBeToLe(sc);
-        if (!frIsCanonical(&k_le)) return false;
         var term: [192]u8 align(8) = undefined;
         g2ScalarMul(&term, &k_le, &p_internal);
         g2PointAddInPlace(&acc, &term);
@@ -770,25 +791,58 @@ pub fn g2Msm(pairs: anytype, result: *[192]u8) bool {
     return true;
 }
 
+/// EIP-2537 PAIRING_CHECK: pairs is a slice of (g1:[96]u8, g2:[192]u8) in
+/// the external format. Returns false if any point is non-canonical, off the
+/// curve or outside the r-order subgroup; otherwise sets `verified`.
+pub fn pairingCheck(pairs: anytype, verified: *bool) bool {
+    setupOnce();
+    const g1s = heapAlloc(pairs.len * @sizeOf(*const [96]u8)) orelse return false;
+    const g2s = heapAlloc(pairs.len * @sizeOf(*const [192]u8)) orelse return false;
+    const g1_ptrs: [*]*const [96]u8 = @ptrCast(@alignCast(g1s));
+    const g2_ptrs: [*]*const [192]u8 = @ptrCast(@alignCast(g2s));
+    const g1_buf = heapAlloc(pairs.len * 96) orelse return false;
+    const g2_buf = heapAlloc(pairs.len * 192) orelse return false;
+
+    for (pairs, 0..) |*pair, i| {
+        const p: *[96]u8 = @ptrCast(@alignCast(g1_buf + i * 96));
+        p[0..48].* = fqBeToLe(pair.g1[0..48]);
+        p[48..96].* = fqBeToLe(pair.g1[48..96]);
+        if (!fqIsCanonical(p[0..48]) or !fqIsCanonical(p[48..96])) return false;
+        if (!g1IsOnCurveOrIdentity(p[0..48], p[48..96])) return false;
+        if (!g1InSubgroup(p)) return false;
+
+        const q: *[192]u8 = @ptrCast(@alignCast(g2_buf + i * 192));
+        g2ExternalToInternal(&pair.g2, q);
+        if (!fqIsCanonical(q[0..48]) or !fqIsCanonical(q[48..96]) or
+            !fqIsCanonical(q[96..144]) or !fqIsCanonical(q[144..192])) return false;
+        if (!g2IsOnCurveOrIdentity(q[0..96], q[96..192])) return false;
+        if (!g2InSubgroup(q)) return false;
+
+        g1_ptrs[i] = p;
+        g2_ptrs[i] = q;
+    }
+    return pairingCheckPoints(g1_ptrs[0..pairs.len], g2_ptrs[0..pairs.len], verified);
+}
+
 /// EIP-4844 KZG point evaluation: e(C-[y]G1, G2) · e(-π, [τ]G2-[z]G2) == 1
 ///
-/// Decompresses commitment and proof, computes pairing inputs, emits the
-/// BLS12-381 pairing phantom for the prover, and drains the hint stream.
-/// Returns false only for malformed (non-curve) inputs. Valid mainnet blobs
-/// are pre-validated by consensus, so we trust the pairing result.
+/// Returns false for malformed input (a commitment or proof that does not
+/// decompress to a point of the r-order subgroup); otherwise sets `verified`
+/// to the pairing check's result.
 pub fn kzgVerify(
     commitment: *const [48]u8,
     z: *const [32]u8,
     y: *const [32]u8,
     proof: *const [48]u8,
+    verified: *bool,
 ) bool {
     setupOnce();
 
     var C: [96]u8 align(8) = undefined;
-    if (!decompressG1(commitment, &C)) return false;
+    if (!decompressG1(commitment, &C) or !g1InSubgroup(&C)) return false;
 
     var pi: [96]u8 align(8) = undefined;
-    if (!decompressG1(proof, &pi)) return false;
+    if (!decompressG1(proof, &pi) or !g1InSubgroup(&pi)) return false;
 
     // P1 = C - [y]G1_gen = C + (-[y]G1_gen)
     const y_le: Fr = frBeToLe(y);
@@ -819,28 +873,7 @@ pub fn kzgVerify(
     subFq(&neg_pi_y, &ZERO_FQ, pi[48..96]);
     @memcpy(neg_pi[48..96], &neg_pi_y);
 
-    // Emit BLS12-381 pairing phantom: P=[P1, -π], Q=[G2_gen, Q2]
-    // Fat slice: {ptr: u64, len: u64} where len = number of points
-    var p_arr: [192]u8 align(8) = undefined;
-    @memcpy(p_arr[0..96], &P1);
-    @memcpy(p_arr[96..192], &neg_pi);
-
-    var q_arr: [384]u8 align(8) = undefined;
-    @memcpy(q_arr[0..192], &G2_GEN);
-    @memcpy(q_arr[192..384], &Q2);
-
-    var p_fat: [2]u64 align(8) = .{ @intFromPtr(&p_arr), 2 };
-    var q_fat: [2]u64 align(8) = .{ @intFromPtr(&q_arr), 2 };
-
-    asm volatile (".insn r 0x2b, 3, 16, x0, %[rs1], %[rs2]"
-        :
-        : [rs1] "r" (@intFromPtr(&p_fat)),
-          [rs2] "r" (@intFromPtr(&q_fat)),
-        : .{ .memory = true });
-
-    // Drain 2×Fp12 hint output: 2 × 12 × 48 = 1152 bytes = 144 × 8-byte dwords
-    var hint_buf: [1152]u8 align(8) = undefined;
-    hintBufferChunked(&hint_buf, 144);
-
-    return true;
+    const g1s = [_]*const [96]u8{ &P1, &neg_pi };
+    const g2s = [_]*const [192]u8{ &G2_GEN, &Q2 };
+    return pairingCheckPoints(&g1s, &g2s, verified);
 }

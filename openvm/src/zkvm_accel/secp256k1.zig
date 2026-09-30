@@ -11,10 +11,10 @@
 ///   funct3=1, funct7 = curve_idx*8 + base_op
 ///     EC_ADD_NE=0, EC_DOUBLE=1, EC_SETUP=2
 ///
-/// Modulus assignments (from openvm.toml order):
-///   mod_idx=0: secp256k1 field prime p
-///   mod_idx=1: secp256k1 scalar order n
-///   curve_idx=0: secp256k1
+/// Indices follow openvm's SdkVmConfig::standard(), the config eth-act/ere executes with:
+///   mod_idx=2: secp256k1 field prime p
+///   mod_idx=3: secp256k1 scalar order n
+///   curve_idx=1: secp256k1
 ///
 /// Point format: 64 bytes = x(32 LE bytes) || y(32 LE bytes), align(8).
 /// All-zero = point at infinity.
@@ -142,51 +142,51 @@ fn setupOnce() void {
     const p1_ptr: usize = @intFromPtr(&EC_SETUP_P1);
     const p2_ptr: usize = @intFromPtr(&EC_SETUP_P2);
 
-    // SETUP_ADDSUB for mod_idx=0 (p): funct7=5, rs2=x0
-    asm volatile (".insn r 0x2b, 0, 5, %[rd], %[rs1], x0"
+    // SETUP_ADDSUB for mod_idx=2 (p): funct7=21 (5+16), rs2=x0
+    asm volatile (".insn r 0x2b, 0, 21, %[rd], %[rs1], x0"
         :
         : [rd] "r" (@intFromPtr(&uninit)),
           [rs1] "r" (p_ptr),
         : .{ .memory = true });
-    // SETUP_MULDIV for mod_idx=0 (p): funct7=5, rs2=x1
-    asm volatile (".insn r 0x2b, 0, 5, %[rd], %[rs1], x1"
+    // SETUP_MULDIV for mod_idx=2 (p): funct7=21 (5+16), rs2=x1
+    asm volatile (".insn r 0x2b, 0, 21, %[rd], %[rs1], x1"
         :
         : [rd] "r" (@intFromPtr(&uninit)),
           [rs1] "r" (p_ptr),
         : .{ .memory = true });
 
-    // SETUP_ADDSUB for mod_idx=1 (n): funct7=13 (5+8), rs2=x0
-    asm volatile (".insn r 0x2b, 0, 13, %[rd], %[rs1], x0"
+    // SETUP_ADDSUB for mod_idx=3 (n): funct7=29 (5+24), rs2=x0
+    asm volatile (".insn r 0x2b, 0, 29, %[rd], %[rs1], x0"
         :
         : [rd] "r" (@intFromPtr(&uninit)),
           [rs1] "r" (n_ptr),
         : .{ .memory = true });
-    // SETUP_MULDIV for mod_idx=1 (n): funct7=13 (5+8), rs2=x1
-    asm volatile (".insn r 0x2b, 0, 13, %[rd], %[rs1], x1"
+    // SETUP_MULDIV for mod_idx=3 (n): funct7=29 (5+24), rs2=x1
+    asm volatile (".insn r 0x2b, 0, 29, %[rd], %[rs1], x1"
         :
         : [rd] "r" (@intFromPtr(&uninit)),
           [rs1] "r" (n_ptr),
         : .{ .memory = true });
 
-    // SETUP_EC_ADD_NE for curve_idx=0 (secp256k1): funct7=2, rs2=p2_ptr (!=0)
-    asm volatile (".insn r 0x2b, 1, 2, %[rd], %[rs1], %[rs2]"
+    // SETUP_EC_ADD_NE for curve_idx=1 (secp256k1): funct7=10 (2+8), rs2=p2_ptr (!=0)
+    asm volatile (".insn r 0x2b, 1, 10, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(&ec_uninit)),
           [rs1] "r" (p1_ptr),
           [rs2] "r" (p2_ptr),
         : .{ .memory = true });
-    // SETUP_EC_DOUBLE for curve_idx=0 (secp256k1): funct7=2, rs2=x0
-    asm volatile (".insn r 0x2b, 1, 2, %[rd], %[rs1], x0"
+    // SETUP_EC_DOUBLE for curve_idx=1 (secp256k1): funct7=10 (2+8), rs2=x0
+    asm volatile (".insn r 0x2b, 1, 10, %[rd], %[rs1], x0"
         :
         : [rd] "r" (@intFromPtr(&ec_uninit)),
           [rs1] "r" (p1_ptr),
         : .{ .memory = true });
 }
 
-// ── Modular arithmetic (mod_idx=0, p) ─────────────────────────────────────────
+// ── Modular arithmetic (mod_idx=2, p) ─────────────────────────────────────────
 
 inline fn addModP(out: *Fe, a: *const Fe, b: *const Fe) void {
-    asm volatile (".insn r 0x2b, 0, 0, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 0, 16, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -195,7 +195,7 @@ inline fn addModP(out: *Fe, a: *const Fe, b: *const Fe) void {
 }
 
 inline fn subModP(out: *Fe, a: *const Fe, b: *const Fe) void {
-    asm volatile (".insn r 0x2b, 0, 1, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 0, 17, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -204,7 +204,7 @@ inline fn subModP(out: *Fe, a: *const Fe, b: *const Fe) void {
 }
 
 inline fn mulModP(out: *Fe, a: *const Fe, b: *const Fe) void {
-    asm volatile (".insn r 0x2b, 0, 2, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 0, 18, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -212,11 +212,11 @@ inline fn mulModP(out: *Fe, a: *const Fe, b: *const Fe) void {
         : .{ .memory = true });
 }
 
-// ── Modular arithmetic (mod_idx=1, n) ─────────────────────────────────────────
+// ── Modular arithmetic (mod_idx=3, n) ─────────────────────────────────────────
 
 inline fn subModN(out: *Fe, a: *const Fe, b: *const Fe) void {
-    // funct7 = 1 + 1*8 = 9
-    asm volatile (".insn r 0x2b, 0, 9, %[rd], %[rs1], %[rs2]"
+    // funct7 = 1 + 3*8 = 25
+    asm volatile (".insn r 0x2b, 0, 25, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -225,8 +225,8 @@ inline fn subModN(out: *Fe, a: *const Fe, b: *const Fe) void {
 }
 
 inline fn divModN(out: *Fe, a: *const Fe, b: *const Fe) void {
-    // funct7 = 3 + 1*8 = 11
-    asm volatile (".insn r 0x2b, 0, 11, %[rd], %[rs1], %[rs2]"
+    // funct7 = 3 + 3*8 = 27
+    asm volatile (".insn r 0x2b, 0, 27, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(out)),
           [rs1] "r" (@intFromPtr(a)),
@@ -236,12 +236,12 @@ inline fn divModN(out: *Fe, a: *const Fe, b: *const Fe) void {
 
 // ── HintSqrt ──────────────────────────────────────────────────────────────────
 
-/// Compute sqrt(x) mod p using OpenVM's HintSqrt phantom (mod_idx=0).
+/// Compute sqrt(x) mod p using OpenVM's HintSqrt phantom (mod_idx=2).
 /// Returns true if x is a quadratic residue; on success, out = sqrt(x) mod p.
 /// Always reads 40 bytes from the hint stream (flag + sqrt) to keep it in sync.
 fn fieldSqrtP(out: *Fe, x: *const Fe) bool {
-    // HintSqrt phantom: funct7 = 7 + 0*8 = 7, rd=x0, rs2=x0
-    asm volatile (".insn r 0x2b, 0, 7, x0, %[rs1], x0"
+    // HintSqrt phantom: funct7 = 7 + 2*8 = 23, rd=x0, rs2=x0
+    asm volatile (".insn r 0x2b, 0, 23, x0, %[rs1], x0"
         :
         : [rs1] "r" (@intFromPtr(x)),
         : .{ .memory = true });
@@ -280,7 +280,7 @@ fn pointAddInPlace(a: *[64]u8, b: *const [64]u8) void {
     if (std.mem.eql(u8, a[0..32], b[0..32])) {
         if (std.mem.eql(u8, a[32..64], b[32..64])) {
             // P == Q: double in-place (rd = rs1 = a)
-            asm volatile (".insn r 0x2b, 1, 1, %[rd], %[rs1], x0"
+            asm volatile (".insn r 0x2b, 1, 9, %[rd], %[rs1], x0"
                 :
                 : [rd] "r" (@intFromPtr(a)),
                   [rs1] "r" (@intFromPtr(a)),
@@ -291,7 +291,7 @@ fn pointAddInPlace(a: *[64]u8, b: *const [64]u8) void {
         return;
     }
     // x-coordinates differ: add ne (rd = rs1 = a for in-place)
-    asm volatile (".insn r 0x2b, 1, 0, %[rd], %[rs1], %[rs2]"
+    asm volatile (".insn r 0x2b, 1, 8, %[rd], %[rs1], %[rs2]"
         :
         : [rd] "r" (@intFromPtr(a)),
           [rs1] "r" (@intFromPtr(a)),
@@ -311,7 +311,7 @@ fn scalarMul(result: *[64]u8, k: *const Fe, p: *const [64]u8) void {
             pointAddInPlace(result, &cur);
         }
         if (!isInfinity(&cur)) {
-            asm volatile (".insn r 0x2b, 1, 1, %[rd], %[rs1], x0"
+            asm volatile (".insn r 0x2b, 1, 9, %[rd], %[rs1], x0"
                 :
                 : [rd] "r" (@intFromPtr(&cur)),
                   [rs1] "r" (@intFromPtr(&cur)),

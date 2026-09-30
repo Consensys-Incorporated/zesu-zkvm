@@ -54,8 +54,9 @@ has to speak OpenVM's non-standard opcode regardless of guest language.
 | `zkvm_bn254_g1_add`, `zkvm_bn254_g1_mul`                   | `openvm_host.zig` | stub (returns false) |
 | `zkvm_bn254_pairing`                                       | `openvm_host.zig` | stub (returns false) |
 | `zkvm_blake2f`                                             | `openvm_host.zig` | stub (returns false) |
-| `zkvm_kzg_point_eval`                                      | `openvm_host.zig` | returns verified=true (mainnet only) |
-| `zkvm_bls12_g1_*`, `zkvm_bls12_g2_*`, `zkvm_bls12_pairing` | `openvm_host.zig` | stubs (return false) |
+| `zkvm_kzg_point_eval`                                      | `openvm_host.zig` | pairing check via OpenVM's pairing library (`pairing/`) |
+| `zkvm_bls12_g1_*`, `zkvm_bls12_g2_*`                       | `openvm_host.zig` | OpenVM Fp/Fp2/ECC accelerators |
+| `zkvm_bls12_pairing`                                       | `openvm_host.zig` | OpenVM's pairing library (`pairing/`) |
 | `zkvm_bls12_map_fp*`, `zkvm_secp256r1_verify`              | `openvm_host.zig` | stubs (return false) |
 | `read_input`                                               | `openvm_host.zig` | hint-stream (hintInput + hintBufferChunked) |
 | `write_output`                                             | `openvm_host.zig` | REVEAL instructions (funct3=2, opcode 0x0b) |
@@ -71,12 +72,8 @@ has to speak OpenVM's non-standard opcode regardless of guest language.
 - **No ZK proof generation.** The runner calls `sdk.execute()` (emulation
   only). Proof generation would require wiring in STARK aggregation params and
   a real trusted setup.
-- **KZG point evaluation is not verified.** `kzg_point_eval` accepts all
-  proofs without computing the BLS12-381 pairing. Valid mainnet blocks are
-  unaffected (the consensus layer validates blob proofs before inclusion), but
-  this guest must not be used to prove untrusted blocks.
-- **BN254, BLS12-381, RIPEMD-160, and modexp are stubs.** Blocks that call
-  those precompiles will produce wrong state.
+- **The BN254 pairing and BLS12-381 map-to-curve are stubs.** Blocks that
+  call them will produce wrong state.
 - **ecrecover, SHA-256, keccak256, secp256k1 verify** use `std.crypto` —
   functional and tested against mainnet blocks.
 
@@ -96,9 +93,9 @@ openvm/
       zesu_allocator.zig — zesu_allocator shim (unused after refactor)
     main.zig            — previous entry point (unused after refactor)
   runner/
-    src/main.rs        — Rust host: loads ELF, feeds hint stream, reads public values
+    src/main.rs        — Rust host: executes the ELF the way eth-act/ere does
   openvm.ld            — linker script (TEXT_START=0x00200800, 512 MB heap)
-  openvm.toml          — VM config (rv64i + rv64m + io, 64 public value bytes)
+  openvm.toml          — VM config: a copy of openvm's `openvm_standard.toml` (`SdkVmConfig::standard()`)
   build.zig            — Zig build script
   Makefile             — build / run / test / bless
 ```
@@ -109,7 +106,8 @@ openvm/
 |---|---|---|
 | Zig | ≥ 0.16.0 | see `minimum_zig_version` in `build.zig.zon` |
 | Rust stable | ≥ 1.91 | `rustup update stable` |
-| OpenVM source | path dep | at `../../../../openvm` relative to this directory |
+| OpenVM | [`v2.1.0-preview`](https://github.com/openvm-org/openvm/releases/tag/v2.1.0-preview) | git dep, pinned to the revision [eth-act/ere](https://github.com/eth-act/ere) v0.17.0 uses |
+| OpenVM Rust toolchain | `openvm-1.94.1` | builds `pairing/` for `riscv64im-unknown-openvm-elf`; install with OpenVM's `ci/install-openvm-toolchain.sh` (see the Makefile) |
 | zesu/core | path dep | sibling at `../../zesu/core` |
 
 ## Building the guest ELF
@@ -117,6 +115,9 @@ openvm/
 ```sh
 # Build the Rust host runner (one-time or after openvm changes)
 make runner
+
+# Build OpenVM's pairing library into lib/ (one-time or after pairing/ changes)
+make pairing-lib
 
 # Build the Zig guest ELF
 make
@@ -129,7 +130,18 @@ The build executes two steps:
 
 1. **Compile `zesu.o`** — zesu/core's `zkvm_root` module for rv64im freestanding.
    All `zkvm_*`, IO, and heap symbols are unresolved extern refs.
-2. **Final link** — `zesu.o + openvm-host.o + startup.S` under `openvm.ld`.
+2. **Final link** — `zesu.o + openvm-host.o + lib/libzesu_openvm_pairing.a + startup.S`
+   under `openvm.ld`.
+
+### Pairing library (`pairing/`)
+
+The BLS12-381 pairing check (EIP-2537 `PAIRING_CHECK`, EIP-4844 KZG) comes from
+OpenVM's own guest library, `openvm-pairing`, built as a static library with
+OpenVM's toolchain and the rustc
+flags `cargo openvm build` uses (`pairing/.cargo/config.toml`). It shares the
+Zig guest's heap through a patched copy of `openvm-platform`
+(`pairing/vendor/`), and `make pairing-lib` localizes its `_start` and `mem*`
+symbols so the Zig entry point and routines stay in charge.
 
 Output: `zig-out/bin/zesu-openvm`
 
@@ -145,15 +157,27 @@ make test
 make bless
 ```
 
+## ere compatibility
+
+The guest targets the ABI eth-act/ere's OpenVM host executes with, so the same ELF
+runs under the runner here and under `zkevm-benchmark-workload`:
+
+- **VM config:** `SdkVmConfig::standard()` with 256 public-value bytes. The
+  accelerators in `src/zkvm_accel/` encode modulus, curve, Fp2 and pairing indices
+  in that config's order (BN254 first, then secp256k1, P-256, BLS12-381).
+- **Input:** the raw SSZ payload as one hint-stream entry — ere's
+  `StdIn::write_bytes(statelessInputBytes)`, read like `openvm::io::read_vec`.
+
 ## Input format
+
+Input files (`vectors/*.bin`) share the ZisK target's format:
 
 ```
 [0..8]   payload_len  — u64 LE, byte count of the SSZ body
 [8..]    SSZ body     — padded to 8-byte boundary
 ```
 
-The host runner passes the raw file bytes via `StdIn::from_bytes`; `zkvm_io.read_input`
-strips the length prefix and hands the SSZ slice to the executor.
+The host runner strips the header and passes only the SSZ body to the guest.
 
 ## Output format
 
