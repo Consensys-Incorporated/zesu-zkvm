@@ -189,9 +189,7 @@ pub fn bn254_g1_mul(point: *const [64]u8, scalar_: *const [32]u8, result: *[64]u
 }
 
 pub fn bn254_pairing(pairs: anytype, verified: *bool) bool {
-    _ = pairs;
-    verified.* = false;
-    return false;
+    return bn254_impl.pairingCheck(pairs, verified);
 }
 
 pub fn blake2f(rounds: u32, h: *[64]u8, m: *const [128]u8, t: *const [16]u8, f: u8) bool {
@@ -199,9 +197,7 @@ pub fn blake2f(rounds: u32, h: *[64]u8, m: *const [128]u8, t: *const [16]u8, f: 
 }
 
 pub fn kzg_point_eval(commitment: *const [48]u8, z: *const [32]u8, y: *const [32]u8, proof: *const [48]u8, verified: *bool) bool {
-    if (!bls12_impl.kzgVerify(commitment, z, y, proof)) return false;
-    verified.* = true;
-    return true;
+    return bls12_impl.kzgVerify(commitment, z, y, proof, verified);
 }
 
 pub fn bls12_g1_add(p1: *const [96]u8, p2: *const [96]u8, result: *[96]u8) bool {
@@ -221,9 +217,7 @@ pub fn bls12_g2_msm(pairs: anytype, result: *[192]u8) bool {
 }
 
 pub fn bls12_pairing(pairs: anytype, verified: *bool) bool {
-    _ = pairs;
-    verified.* = false;
-    return false;
+    return bls12_impl.pairingCheck(pairs, verified);
 }
 
 pub fn bls12_map_fp_to_g1(field_element: *const [48]u8, result: *[96]u8) bool {

@@ -1,0 +1,28 @@
+[package]
+name = "zesu-openvm-pairing"
+version = "0.1.0"
+edition = "2021"
+description = "OpenVM's pairing guest library, exported to the zesu-openvm Zig guest as a static library"
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+# Same revision as runner/Cargo.toml — the one eth-act/ere executes guests with.
+[dependencies]
+openvm = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90", default-features = false }
+openvm-algebra-guest = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90" }
+openvm-ecc-guest = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90" }
+openvm-pairing = { git = "https://github.com/han0110/openvm.git", rev = "a391b22ebb5305fa52d3394abfd0810df4baff90", features = ["bls12_381", "bn254"] }
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+
+# openvm-platform's allocator keeps a private heap pointer starting at `_end`,
+# where the Zig guest's heap also starts; the vendored copy is patched to share
+# ZKVM_HEAP_POS (see vendor/openvm-platform/src/memory.rs, "ZESU PATCH").
+[patch."https://github.com/han0110/openvm.git"]
+openvm-platform = { path = "vendor/openvm-platform" }

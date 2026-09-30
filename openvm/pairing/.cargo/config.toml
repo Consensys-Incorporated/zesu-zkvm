@@ -1,0 +1,12 @@
+# The rustc flags `cargo openvm build` passes to every guest
+# (openvm-build encode_rust_flags, rev a391b22): atomics become plain ops in
+# the single-threaded guest, and guest crates select their OpenVM-intrinsic
+# code paths.
+[target.riscv64im-unknown-openvm-elf]
+rustflags = [
+    "-C", "passes=lower-atomic",
+    "-C", "panic=abort",
+    "--cfg", 'getrandom_backend="custom"',
+    "--cfg", "openvm_intrinsics",
+    "--check-cfg=cfg(openvm_intrinsics)",
+]
