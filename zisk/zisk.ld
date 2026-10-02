@@ -1,4 +1,4 @@
-/* Linker script for Zisk zkVM (v1.1.0-alpha memory map)
+/* Linker script for Zisk zkVM (v1.2.0-alpha; map unchanged since v1.1.0-alpha)
  * ROM: 0x80000000 - 0x87F00000 (127MB) - code and read-only data
  *      Ends BEFORE FLOAT_LIB_ROM_ADDR (0x87F00000, the last 1MB of the 128MB
  *      ROM window), which ziskemu reserves for the float library's code.

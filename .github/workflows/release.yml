@@ -8,7 +8,7 @@ name: Release
 #   zesu_version — zesu release tag to pull zesu.rv64im.o from (empty = latest)
 #
 # Targets built:
-#   zisk    — ZisK v1.1.0-alpha; links zesu.o + zisk-wrapped.o (host + libziskos_staticlib merged)
+#   zisk    — ZisK v1.2.0-alpha; links zesu.o + zisk-wrapped.o (host + libziskos_staticlib merged)
 #   openvm  — OpenVM rv64im; links zesu.o + openvm-host.o
 #   linea   — Linea rv64im; links zesu.o + linea-host.o; stripped ELF
 #
@@ -46,16 +46,17 @@ on:
         default: ""
 
 env:
-  ZISK_VERSION: "1.1.0-alpha"
+  ZISK_VERSION: "1.2.0-alpha"
   OPENVM_VERSION: "ALPHA"
   LINEA_VERSION: "ALPHA"
   # ere (https://github.com/eth-act/ere) revision whose ere-server-* images we
   # pull for VK generation. Keep in sync with the rev ere-guests pins for
   # ere-platform-core (see its Cargo.lock) — bump when they bump. keygen
   # transpiles the ELF with ere's own zisk, so ere's ziskos pin must match
-  # ZISK_VERSION too. 0.17.0: ziskos 1.1.0-alpha, and what ere-guests pins.
-  # Note the ghcr tag has no "v" prefix, unlike ere's git tag (v0.17.0).
-  ERE_TAG: "0.17.0"
+  # ZISK_VERSION too. 0.18.0: ziskos 1.2.0-alpha. NOTE: ere-guests main still
+  # pins ere v0.17.0 (ziskos 1.1.0-alpha), so this is ahead of the consumer.
+  # Note the ghcr tag has no "v" prefix, unlike ere's git tag (v0.18.0).
+  ERE_TAG: "0.18.0"
 
 permissions:
   contents: write
