@@ -3,7 +3,7 @@
 # Prerequisites:
 #   - Zig (see minimum_zig_version in build.zig.zon)
 #   - Rust 1.91.1 stable (for the runner)
-#   - openvm checkout at ../../../../openvm relative to this directory
+#   - openvm checkout (v2.x.0-preview.2) at ../../../openvm relative to this directory
 #
 # Usage:
 #   make runner               — build the Rust host runner
