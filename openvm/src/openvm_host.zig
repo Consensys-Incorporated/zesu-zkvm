@@ -20,7 +20,9 @@ const std = @import("std");
 const accel = @import("accel_impl");
 const io = @import("zkvm_io");
 
-/// OpenVM guest memory upper bound (512 MB, matches openvm-platform MEM_SIZE).
+/// OpenVM guest memory upper bound (512 MB heap cap). openvm-platform's own
+/// MEM_SIZE is 4 GB as of v2.x.0-preview.2 (MEM_BITS 29->32); this stays at
+/// 512 MB deliberately rather than tracking that ceiling.
 const GUEST_MAX_MEM: usize = 0x20000000;
 
 /// Linker-defined symbol marking the end of all ELF sections (heap start).
