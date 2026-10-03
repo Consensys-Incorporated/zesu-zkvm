@@ -283,6 +283,9 @@ fn doVerify(msg: *const [32]u8, sig: *const [64]u8, pubkey: *const [64]u8) bool 
 
     var pk_x: Fe align(8) = beToLe(pubkey[0..32]);
     var pk_y: Fe align(8) = beToLe(pubkey[32..64]);
+    // EIP-7951: qx, qy must be < p; the on-curve check alone would accept
+    // an out-of-range coordinate congruent to a valid one.
+    if (!feNumericLessThan(&pk_x, &P_LE) or !feNumericLessThan(&pk_y, &P_LE)) return false;
     var PK_buf: [64]u8 align(8) = undefined;
     @memcpy(PK_buf[0..32], &pk_x);
     @memcpy(PK_buf[32..64], &pk_y);
