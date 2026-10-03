@@ -227,15 +227,11 @@ pub fn bls12_pairing(pairs: anytype, verified: *bool) bool {
 }
 
 pub fn bls12_map_fp_to_g1(field_element: *const [48]u8, result: *[96]u8) bool {
-    _ = field_element;
-    _ = result;
-    return false;
+    return bls12_impl.mapFpToG1(field_element, result);
 }
 
 pub fn bls12_map_fp2_to_g2(field_element: *const [96]u8, result: *[192]u8) bool {
-    _ = field_element;
-    _ = result;
-    return false;
+    return bls12_impl.mapFp2ToG2(field_element, result);
 }
 
 pub fn secp256r1_verify(msg: *const [32]u8, sig: *const [64]u8, pubkey: *const [64]u8, verified: *bool) void {
