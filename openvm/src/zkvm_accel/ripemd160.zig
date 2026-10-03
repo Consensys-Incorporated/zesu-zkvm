@@ -130,7 +130,7 @@ fn compressBlock(h: *[5]u32, block: *const [64]u8) void {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/// Compute RIPEMD-160 and write the 20-byte digest into output[0..20]; output[20..32] = 0.
+/// Compute RIPEMD-160 and write the 20-byte digest into output[12..32]; output[0..12] = 0.
 pub fn ripemd160(data: []const u8, output: *[32]u8) void {
     var h: [5]u32 = .{ 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
 
@@ -154,8 +154,25 @@ pub fn ripemd160(data: []const u8, output: *[32]u8) void {
         compressBlock(&h, pad[64..128]);
     }
 
+    // The zkvm_ripemd160 contract is the EVM precompile's output: the 20-byte
+    // digest right-aligned in a 32-byte word.
+    @memset(output[0..12], 0);
     for (h, 0..) |word, i| {
-        std.mem.writeInt(u32, output[i * 4 ..][0..4], word, .little);
+        std.mem.writeInt(u32, output[12 + i * 4 ..][0..4], word, .little);
     }
-    @memset(output[20..32], 0);
+}
+
+test "ripemd160 writes the digest right-aligned" {
+    const vectors = [_]struct { in: []const u8, digest: []const u8 }{
+        .{ .in = "", .digest = "9c1185a5c5e9fc54612808977ee8f548b2258d31" },
+        .{ .in = "abc", .digest = "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc" },
+        .{ .in = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", .digest = "12a053384a9c0c88e405a06c27dcf49ada62eb2b" },
+    };
+    for (vectors) |v| {
+        var expected: [32]u8 = .{0} ** 32;
+        _ = try std.fmt.hexToBytes(expected[12..], v.digest);
+        var got: [32]u8 = .{0xaa} ** 32;
+        ripemd160(v.in, &got);
+        try std.testing.expectEqualSlices(u8, &expected, &got);
+    }
 }

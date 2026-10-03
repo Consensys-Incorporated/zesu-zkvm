@@ -26,7 +26,10 @@ use openvm_sdk_config::SdkVmConfig;
 /// the public values and never writes the rest; anything sliced beyond the result
 /// is padding, not output.
 const SSZ_OUTPUT_LEN: usize = 43;
-const NUM_PUBLIC_VALUES: usize = 112;
+// openvm requires num_public_values to be a multiple of VM_DIGEST_WIDTH (8) whose
+// quotient is a power of two (assert_public_values_shape). 64 is the smallest such
+// value that covers the 48-byte-aligned SSZ_OUTPUT_LEN above.
+const NUM_PUBLIC_VALUES: usize = 64;
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -194,7 +197,7 @@ fn main() -> Result<()> {
     let (public_values, instret) = if metered {
         execute_metered(&sdk, vm_config, elf_bytes, stdin)?
     } else {
-        let pv = sdk.execute(elf_bytes, stdin)?;
+        let pv = sdk.compile_and_execute(elf_bytes, stdin)?;
         (pv, 0u64)
     };
 
