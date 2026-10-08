@@ -18,10 +18,9 @@ env:
   # without anything failing loudly. Pinning a commit makes the coupling between
   # the two repos explicit — bump this line to move.
   #
-  # zesu main. The pin sat four commits behind on 65f2ca8 while the guest could
-  # not execute a mainnet block at all; zesu #107 fixed that, and zesu now runs
-  # these vectors in its own CI, so main is a safe target again.
-  ZESU_REF: "329c0128306ae131c9e6e0ceb2d10463c464c4e9"
+  # zesu main at #146, the tests-zkevm@v21.0.5 input layout (no public_keys,
+  # block_hash checked against the header). The vectors are encoded for it.
+  ZESU_REF: "3f982aabda5027b658e79c9b1cc9e3ec88705139"
 
 jobs:
   ci:
