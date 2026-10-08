@@ -16,6 +16,9 @@ ZISK_DIR  ?= ../../zisk
 ZISK_PKG   = ziskos-staticlib
 ZISK_LIB   = ziskos_staticlib
 ZISK_TARGET = riscv64ima-zisk-zkvm-elf
+# Without this, every unaligned u64 read in ziskos (e.g. keccak256's absorb) is
+# assembled from single bytes.
+ZISK_RUSTFLAGS ?= -C target-feature=+unaligned-scalar-mem
 CARGO     ?= cargo
 
 LIB_OUT   = lib/libziskos_staticlib.a
@@ -48,7 +51,7 @@ $(LIB_OUT):
 	    { echo "ERROR: Zisk Rust toolchain 'zisk' not installed."; \
 	      echo "       Install via ziskup / cargo-zisk toolchain install"; exit 1; }
 	@echo "==> Building libziskos_staticlib.a from $(ZISK_DIR) ..."
-	cd $(ZISK_DIR) && $(CARGO) +zisk build -p $(ZISK_PKG) \
+	cd $(ZISK_DIR) && CARGO_TARGET_RISCV64IMA_ZISK_ZKVM_ELF_RUSTFLAGS="$(ZISK_RUSTFLAGS)" $(CARGO) +zisk build -p $(ZISK_PKG) \
 	    --target $(ZISK_TARGET) --release \
 	    --config 'profile.release.lto="fat"'
 	@mkdir -p lib
