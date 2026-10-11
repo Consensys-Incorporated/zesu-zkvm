@@ -18,6 +18,8 @@ ZISK_LIB   = ziskos_staticlib
 ZISK_TARGET = riscv64ima-zisk-zkvm-elf
 # Without this, every unaligned u64 read in ziskos (e.g. keccak256's absorb) is
 # assembled from single bytes.
+# NOTE: emits misaligned ld/lw; emulator-validated only. If the prover/keygen
+# rejects unaligned memory accesses, drop this flag first.
 ZISK_RUSTFLAGS ?= -C target-feature=+unaligned-scalar-mem
 CARGO     ?= cargo
 
