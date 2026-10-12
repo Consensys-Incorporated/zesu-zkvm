@@ -187,10 +187,10 @@ jobs:
       - name: Build zesu object
         working-directory: zesu
         run: |
-          zig build rv64im-object -Doptimize=ReleaseFast
+          zig build zisk-object -Doptimize=ReleaseFast
           mkdir -p /tmp/zesu-obj
-          cp zig-out/lib/zesu.o /tmp/zesu-obj/zesu.rv64im.o
+          cp zig-out/lib/zesu-zisk.o /tmp/zesu-obj/zesu.zisk.o
 
       - name: Run vectors
         working-directory: zesu-zkvm/zisk
-        run: make test ZESU_OBJ=/tmp/zesu-obj/zesu.rv64im.o
+        run: make test ZESU_OBJ=/tmp/zesu-obj/zesu.zisk.o
