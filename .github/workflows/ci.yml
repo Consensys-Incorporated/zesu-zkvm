@@ -194,3 +194,51 @@ jobs:
       - name: Run vectors
         working-directory: zesu-zkvm/zisk
         run: make test ZESU_OBJ=/tmp/zesu-obj/zesu.zisk.o
+
+  pico:
+    name: Pico (build & smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout zesu-zkvm
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: "0.16.0"
+
+      # The runner links Pico's own crates, which pin this nightly (see pico/runner/rust-toolchain).
+      - name: Install Rust nightly for the Pico runner
+        run: rustup toolchain install nightly-2025-08-04 --profile minimal
+
+      - name: Cache cargo and runner build
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            pico/runner/target
+          key: pico-runner-${{ runner.os }}-${{ hashFiles('pico/runner/Cargo.lock', 'pico/runner/Cargo.toml', 'pico/runner/rust-toolchain') }}
+
+      # zesu is fetched by `zig build` itself, at the commit pinned in pico/build.zig.zon, and
+      # built here for Pico's own target. No zesu checkout or prebuilt object is involved.
+      - name: Lint (pico)
+        working-directory: pico
+        run: zig fmt --check src/ build.zig
+
+      - name: Build pico (ReleaseFast)
+        working-directory: pico
+        run: zig build -Doptimize=ReleaseFast
+
+      - name: Build pico runner
+        working-directory: pico
+        run: make runner
+
+      # Smoke test: execute one known-good vector on Pico's VM and compare the output with
+      # its expected.hex. The mainnet vector is left out until the KZG point-evaluation
+      # precompile is implemented (the block calls it, so `valid` comes out 0).
+      - name: Smoke test (pico)
+        working-directory: pico
+        run: make test VECTORS=../vectors/sepolia_amsterdam_11856500.bin

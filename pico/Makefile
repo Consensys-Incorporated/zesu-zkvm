@@ -15,7 +15,7 @@
 #   make                      — build the Zig guest ELF
 #   make run INPUT=<file>     — build and execute end-to-end
 #   make prove INPUT=<file>   — also generate + verify a RISCV-phase proof (slow)
-#   make test                 — execute all test vectors
+#   make test                 — execute all test vectors (VECTORS=<files> for a subset)
 #   make bless                — regenerate expected.hex files
 #   make clean                — remove build artifacts
 #   make clean-runner         — also remove the compiled runner
@@ -28,6 +28,10 @@ RUNNER    = runner/target/release/zesu-pico-runner
 ELF       = zig-out/bin/zesu-pico
 # ZESU_SOURCE=../../zesu builds against a local zesu checkout instead of the pinned commit.
 ZIG_FLAGS = $(if $(ZESU_SOURCE),--fork=$(ZESU_SOURCE),)
+
+# Vectors that `make test` and `make bless` run. Override to run a subset, e.g.
+#   make test VECTORS=../vectors/sepolia_amsterdam_11856500.bin
+VECTORS ?= ../vectors/*.bin
 
 # Bytes of SszStatelessValidationResult to compare: the zkevm@v0.8.0 flat layout
 # is root(32) + valid(1) + chain_id(8) + schema_id(2). Must agree with the guest's
@@ -56,7 +60,7 @@ prove: all runner
 
 test: all runner
 	@fail=0; \
-	for bin in ../vectors/*.bin; do \
+	for bin in $(VECTORS); do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \
@@ -83,7 +87,7 @@ test: all runner
 	exit $$fail
 
 bless: all runner
-	@for bin in ../vectors/*.bin; do \
+	@for bin in $(VECTORS); do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \

@@ -152,4 +152,5 @@ On macOS 27 the pinned nightly cannot link against the newest SDK; build the run
    ecrecover/verify to replace the software path.
 2. bn254 g1 add/mul on `BN254_ADD/DOUBLE`; bn254 pairing and bls12-381 (incl. KZG, which the
    mainnet vector needs) in Zig on the Fp/Fp2 precompiles.
-3. Land the zesu `addGuestObject` export upstream, then add a Pico job in CI.
+3. CI (`.github/workflows/ci.yml`, job `pico`) builds the guest and smoke-tests the Sepolia vector;
+   add the mainnet vector once KZG works.
