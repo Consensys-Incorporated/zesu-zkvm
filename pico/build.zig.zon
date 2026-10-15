@@ -10,7 +10,7 @@
         // To build against a local zesu source tree instead (no edit to this file):
         //   ZESU_SOURCE=../../zesu make     (or: zig build --fork=../../zesu)
         .zesu = .{
-            .url = "git+https://github.com/Consensys-Incorporated/zesu#2f13b4d4550e35c1fe24e43272907ee80d716c71",
+            .url = "git+https://github.com/Consensys-Incorporated/zesu#a72dec70a80f3d1d15f8e48f1582f7000f38a48c",
             .hash = "zesu-0.1.0-UtqpABAjRgBjvgOXfBNrsZEs62jtOSKbG09CoLEPpYDP",
         },
     },
