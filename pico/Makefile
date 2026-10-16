@@ -3,9 +3,7 @@
 # Prerequisites:
 #   - Zig (see minimum_zig_version in build.zig.zon)
 #   - Rust nightly-2025-08-04 (pinned in runner/rust-toolchain; rustup installs it
-#     on first use). On macOS 27 that toolchain's linker cannot read the newest SDK's
-#     .tbd stubs: build with SDKROOT pointing at an older SDK, e.g.
-#       SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk make runner
+#     on first use)
 #   - Network access to fetch the zesu commit pinned in build.zig.zon, or a local zesu
 #     checkout passed as ZESU_SOURCE=<dir>. zesu is built inside this build, for Pico's own ISA
 #     target (see build.zig).
@@ -16,6 +14,8 @@
 #   make run INPUT=<file>     — build and execute end-to-end
 #   make prove INPUT=<file>   — also generate + verify a RISCV-phase proof (slow)
 #   make test                 — execute all test vectors (VECTORS=<files> for a subset)
+#   make unit                 — native unit tests of the curve code
+#   make selftest             — run the crypto modules on the Pico VM (RUST_LOG=info for detail)
 #   make bless                — regenerate expected.hex files
 #   make clean                — remove build artifacts
 #   make clean-runner         — also remove the compiled runner
@@ -38,7 +38,7 @@ VECTORS ?= ../vectors/*.bin
 # output length (the runner writes exactly the bytes the guest put on fd 3).
 SSZ_OUTPUT_LEN ?= 43
 
-.PHONY: all runner run prove test bless clean clean-runner
+.PHONY: all runner run prove test selftest unit bless clean clean-runner
 
 all:
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
@@ -53,6 +53,18 @@ $(RUNNER):
 run: all runner
 	@test -n "$(INPUT)" || { echo "ERROR: INPUT is required: make run INPUT=path/to/block.bin" >&2; exit 1; }
 	$(RUNNER) -e $(ELF) -i $(INPUT)
+
+# Native unit tests of the curve code (software field backend; no VM needed).
+unit:
+	$(ZIG) build test -Doptimize=ReleaseFast $(ZIG_FLAGS)
+
+# Run the crypto modules on Pico's VM: syscall path vs software path + known answers.
+selftest: runner
+	$(ZIG) build selftest -Doptimize=ReleaseFast $(ZIG_FLAGS)
+	@out=$$(mktemp); : > $$out.in; \
+	$(RUNNER) -e zig-out/bin/zesu-pico-selftest -i $$out.in -o $$out; \
+	got=$$(xxd -p $$out | tr -d '\n'); rm -f $$out $$out.in; \
+	if [ "$$got" = "01" ]; then echo "selftest: OK"; else echo "selftest: FAIL (public values: $$got)"; exit 1; fi
 
 prove: all runner
 	@test -n "$(INPUT)" || { echo "ERROR: INPUT is required: make prove INPUT=path/to/block.bin" >&2; exit 1; }

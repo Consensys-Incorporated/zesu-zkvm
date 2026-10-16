@@ -196,9 +196,9 @@ jobs:
         run: make test ZESU_OBJ=/tmp/zesu-obj/zesu.zisk.o
 
   pico:
-    name: Pico (build & smoke test)
+    name: Pico (build, test & vectors)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout zesu-zkvm
@@ -236,9 +236,17 @@ jobs:
         working-directory: pico
         run: make runner
 
-      # Smoke test: execute one known-good vector on Pico's VM and compare the output with
-      # its expected.hex. The mainnet vector is left out until the KZG point-evaluation
-      # precompile is implemented (the block calls it, so `valid` comes out 0).
-      - name: Smoke test (pico)
+      # Native unit tests of the curve code: EIP vectors, KZG vectors, ECDSA differential tests.
+      - name: Unit tests (pico)
         working-directory: pico
-        run: make test VECTORS=../vectors/sepolia_amsterdam_11856500.bin
+        run: make unit
+
+      # Execute every vector on Pico's VM and compare the output with its expected.hex.
+      - name: Vectors (pico)
+        working-directory: pico
+        run: make test
+
+      # Run the crypto modules on the VM: precompile-backed path vs software path + known answers.
+      - name: Crypto self-test on the VM (pico)
+        working-directory: pico
+        run: make selftest
