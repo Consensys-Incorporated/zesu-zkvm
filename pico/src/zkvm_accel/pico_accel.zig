@@ -1,16 +1,16 @@
 /// Pico accel_impl: Pico precompiles for keccak256 and sha256; shared pure-Zig
 /// implementations for ripemd160, modexp and blake2f.
 ///
-/// ecrecover/secp256k1_verify/secp256r1_verify are software (std.crypto) for now.
-/// Not implemented yet (return failure): bn254, bls12-381, kzg.
-/// Pico has secp256k1/secp256r1 add/double/decompress, bn254/bls12-381 add/double
-/// and Fp/Fp2 precompiles, and a generic 256-bit uint256 mulmod to build them from.
+/// Curve code lives in secp.zig, bn254.zig and bls12_381.zig (each generic over a field backend
+/// so it can be unit-tested natively; see soft.zig, field.zig, tower.zig, pico_fp.zig).
 const std = @import("std");
 const sys = @import("pico_sys");
 const ripemd160_impl = @import("ripemd160");
 const modexp_impl = @import("modexp");
 const blake2f_impl = @import("blake2f");
-const ecdsa = @import("ecdsa_soft.zig");
+pub const secp = @import("secp.zig");
+pub const bn254 = @import("bn254.zig");
+pub const bls12_381 = @import("bls12_381.zig");
 
 // ── Hashes ────────────────────────────────────────────────────────────────────
 
@@ -83,18 +83,18 @@ pub fn sha256(data: []const u8, output: *[32]u8) void {
     for (h, 0..) |hv, i| std.mem.writeInt(u32, output[i * 4 ..][0..4], @truncate(hv), .big);
 }
 
-// ── ECDSA (software, std.crypto) ──────────────────────────────────────────────
+// ── ECDSA ─────────────────────────────────────────────────────────────────────
 
 pub fn ecrecover(msg: *const [32]u8, sig: *const [64]u8, recid: u8, output: *[64]u8) bool {
-    return ecdsa.recoverSecp256k1(msg, sig, recid, output);
+    return secp.ecrecover(msg, sig, recid, output);
 }
 
 pub fn secp256k1_verify(msg: *const [32]u8, sig: *const [64]u8, pubkey: *const [64]u8, verified: *bool) void {
-    verified.* = ecdsa.verifySecp256k1(msg, sig, pubkey);
+    verified.* = secp.verifyK1(msg, sig, pubkey);
 }
 
 pub fn secp256r1_verify(msg: *const [32]u8, sig: *const [64]u8, pubkey: *const [64]u8, verified: *bool) void {
-    verified.* = ecdsa.verifySecp256r1(msg, sig, pubkey);
+    verified.* = secp.verifyR1(msg, sig, pubkey);
 }
 
 // ── Pure-Zig implementations ──────────────────────────────────────────────────
@@ -111,62 +111,50 @@ pub fn blake2f(rounds: u32, h: *[64]u8, m: *const [128]u8, t: *const [16]u8, f: 
     return blake2f_impl.blake2f(rounds, h, m, t, f);
 }
 
-// ── Not implemented yet ───────────────────────────────────────────────────────
+// ── BN254 ─────────────────────────────────────────────────────────────────────
 
 pub fn bn254_g1_add(p1: *const [64]u8, p2: *const [64]u8, result: *[64]u8) bool {
-    _ = .{ p1, p2, result };
-    return false;
+    return bn254.g1Add(p1, p2, result);
 }
 
 pub fn bn254_g1_mul(point: *const [64]u8, scalar_: *const [32]u8, result: *[64]u8) bool {
-    _ = .{ point, scalar_, result };
-    return false;
+    return bn254.g1Mul(point, scalar_, result);
 }
 
 pub fn bn254_pairing(pairs: anytype, verified: *bool) bool {
-    _ = pairs;
-    verified.* = false;
-    return false;
+    return bn254.pairing(pairs, verified);
 }
 
+// ── BLS12-381 ─────────────────────────────────────────────────────────────────
+
 pub fn kzg_point_eval(commitment: *const [48]u8, z: *const [32]u8, y: *const [32]u8, proof: *const [48]u8, verified: *bool) bool {
-    _ = .{ commitment, z, y, proof };
-    verified.* = false;
-    return false;
+    return bls12_381.kzgPointEval(commitment, z, y, proof, verified);
 }
 
 pub fn bls12_g1_add(p1: *const [96]u8, p2: *const [96]u8, result: *[96]u8) bool {
-    _ = .{ p1, p2, result };
-    return false;
+    return bls12_381.g1Add(p1, p2, result);
 }
 
 pub fn bls12_g1_msm(pairs: anytype, result: *[96]u8) bool {
-    _ = .{ pairs, result };
-    return false;
+    return bls12_381.g1Msm(pairs, result);
 }
 
 pub fn bls12_g2_add(p1: *const [192]u8, p2: *const [192]u8, result: *[192]u8) bool {
-    _ = .{ p1, p2, result };
-    return false;
+    return bls12_381.g2Add(p1, p2, result);
 }
 
 pub fn bls12_g2_msm(pairs: anytype, result: *[192]u8) bool {
-    _ = .{ pairs, result };
-    return false;
+    return bls12_381.g2Msm(pairs, result);
 }
 
 pub fn bls12_pairing(pairs: anytype, verified: *bool) bool {
-    _ = pairs;
-    verified.* = false;
-    return false;
+    return bls12_381.pairing(pairs, verified);
 }
 
 pub fn bls12_map_fp_to_g1(field_element: *const [48]u8, result: *[96]u8) bool {
-    _ = .{ field_element, result };
-    return false;
+    return bls12_381.mapFpToG1(field_element, result);
 }
 
 pub fn bls12_map_fp2_to_g2(field_element: *const [96]u8, result: *[192]u8) bool {
-    _ = .{ field_element, result };
-    return false;
+    return bls12_381.mapFp2ToG2(field_element, result);
 }

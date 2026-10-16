@@ -11,20 +11,34 @@ compressed instructions.
 
 | | |
 |---|---|
-| RISC-V execution of zesu on Pico's VM | yes — both vectors run to completion, 34M–1.3B cycles |
+| RISC-V execution of zesu on Pico's VM | yes — both vectors run to completion and match in full |
 | keccak256, sha256 | Pico precompiles |
 | ripemd160, modexp, blake2f | pure Zig, shared with `openvm/` |
-| ecrecover, secp256k1/secp256r1 verify | **software** (`std.crypto`) — correct but ~3M cycles per signature |
-| bn254, bls12-381, kzg | **not implemented** (return failure) |
+| ecrecover, secp256k1/secp256r1 verify | Pico curve precompiles (`SECP256K1_*`, `SECP256R1_*`) plus `UINT256_MUL` for scalar arithmetic |
+| bn254 G1 add/mul | Pico `BN254_ADD`/`BN254_DOUBLE` |
+| bn254 pairing | Zig optimal-ate pairing on the `BN254_FP*` / `FP2*` precompiles (~20M cycles per pair) |
+| bls12-381 G1 add/MSM | Pico `BLS12381_ADD`/`BLS12381_DOUBLE` |
+| bls12-381 G2, pairing, map-to-curve | Zig on the `BLS12381_FP*` / `FP2*` precompiles |
+| KZG point evaluation (EIP-4844) | a real pairing check, not a trusted result (~100M cycles per call) |
 
 `make test` executes each vector on Pico's VM and compares the guest's output with the expected
 output: the SSZ root of the block's new-payload request, plus `valid`, chain id and schema id.
-So the vectors show that RISC-V execution of zesu on Pico's VM reaches the correct result for
-full blocks. 
+Both vectors match in full (`sepolia_amsterdam_11856500`: 728M cycles; `mainnet_fusaka_24758573`:
+899M cycles, which includes one KZG point evaluation). So RISC-V execution of zesu on Pico's VM
+reaches the correct result for full blocks. This target is for execution; it is not used to
+generate proofs.
 
-`sepolia_amsterdam_11856500` matches in full. `mainnet_fusaka_24758573` matches except the
-`valid` byte, which is 0 only because that block calls the KZG point-evaluation precompile
-(verified by temporarily forcing it to succeed: the output then matches in full).
+### Testing the crypto
+
+The curve code (`src/zkvm_accel/secp.zig`, `bn254.zig`, `bls12_381.zig`) is generic over a field
+backend: the guest uses Pico's precompiles (`pico_fp.zig`), and tests use a software backend
+(`soft.zig`), so the same algorithms are checked in two places.
+
+- `make unit` — native unit tests (about a minute): the official EIP-196/197/2537 vectors, c-kzg
+  KZG vectors, ECDSA differential tests against `std.crypto`, and property tests (bilinearity,
+  subgroup orders, Frobenius).
+- `make selftest` — runs the same modules on Pico's VM and compares the precompile-backed path
+  against software and known answers (about two minutes; `-Dselftest=secp|bn254|bls` runs one).
 
 ## Architecture
 
@@ -143,14 +157,10 @@ make run INPUT=../vectors/sepolia_amsterdam_11856500.bin
 
 Set `RUST_LOG=info` to see the guest's `zkvm_log` output.
 
-On macOS 27 the pinned nightly cannot link against the newest SDK; build the runner with
-`SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`.
-
 ## Next steps
 
-1. Wire the Pico curve precompiles (`SECP256K1_*`, `SECP256R1_*`, `UINT256_MUL`) under
-   ecrecover/verify to replace the software path.
-2. bn254 g1 add/mul on `BN254_ADD/DOUBLE`; bn254 pairing and bls12-381 (incl. KZG, which the
-   mainnet vector needs) in Zig on the Fp/Fp2 precompiles.
-3. CI (`.github/workflows/ci.yml`, job `pico`) builds the guest and smoke-tests the Sepolia vector;
-   add the mainnet vector once KZG works.
+1. Cut cycle cost where it is high: the pairings use affine Miller steps and a plain
+   final-exponentiation hard part (KZG ≈ 100M cycles, bn254 ≈ 20M per pair). Projective steps and
+   cyclotomic squaring would reduce both substantially.
+2. Use Pico's `BLS12381_DECOMPRESS` for G1 decompression (currently a software square root).
+3. Proving has not been attempted for a full block (this target is for execution).
