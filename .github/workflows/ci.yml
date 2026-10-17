@@ -254,3 +254,53 @@ jobs:
       - name: Crypto self-test on the VM (pico)
         working-directory: pico
         run: make selftest
+
+  sp1:
+    name: SP1 (build & vectors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout zesu-zkvm
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: "0.16.0"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Cache cargo and runner build
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sp1/runner/target
+          key: sp1-runner-${{ runner.os }}-${{ hashFiles('sp1/runner/Cargo.lock', 'sp1/runner/Cargo.toml') }}
+
+      # zesu is fetched by `zig build` itself, at the commit pinned in sp1/build.zig.zon, and
+      # built here for SP1's own target. No zesu checkout or prebuilt object is involved.
+      - name: Lint (sp1)
+        working-directory: sp1
+        run: zig fmt --check src/ build.zig
+
+      # SP1's zkvm-standards SDK (libzkevm.a, zkvm.ld), pinned by version and SHA-256.
+      - name: Fetch SP1 SDK
+        working-directory: sp1
+        run: make sdk
+
+      - name: Build sp1 (ReleaseFast)
+        working-directory: sp1
+        run: zig build -Doptimize=ReleaseFast
+
+      - name: Build sp1 runner
+        working-directory: sp1
+        run: make runner
+
+      # Execute every vector on SP1's executor and compare the output with its expected.hex.
+      - name: Vectors (sp1)
+        working-directory: sp1
+        run: make test
