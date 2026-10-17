@@ -24,6 +24,21 @@ openvm/runner/target/
 openvm/.zig-cache/
 openvm/zig-out
 
+<<<<<<< Updated upstream
+=======
+# omit pico runner build tree
+pico/runner/target/
+pico/.zig-cache/
+pico/zig-out
+pico/zig-pkg
+
+# omit sp1 runner build tree and Zig caches (sp1/lib/ is ignored above)
+sp1/runner/target/
+sp1/.zig-cache/
+sp1/zig-out
+sp1/zig-pkg
+
+>>>>>>> Stashed changes
 # OS
 .DS_Store
 Thumbs.db
