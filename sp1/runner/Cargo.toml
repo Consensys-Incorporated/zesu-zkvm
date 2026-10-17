@@ -1,0 +1,17 @@
+[package]
+name = "zesu-sp1-runner"
+version = "0.1.0"
+edition = "2021"
+description = "Host runner for the zesu-sp1 zkVM guest"
+
+[[bin]]
+name = "zesu-sp1-runner"
+path = "src/main.rs"
+
+[workspace]
+
+[dependencies]
+# Executor only (no proving backends): default features are off, so no CUDA or network client.
+sp1-sdk = { version = "=6.9.0", default-features = false }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+eyre = "0.6"
