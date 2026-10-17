@@ -43,9 +43,8 @@ SSZ_OUTPUT_LEN ?= 43
 all:
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
 
-runner: $(RUNNER)
-
-$(RUNNER):
+# Always invoke cargo: it is incremental, and a "binary exists" check would miss source edits.
+runner:
 	@command -v $(CARGO) >/dev/null 2>&1 || \
 	    { echo "ERROR: cargo not found. Install Rust: https://rustup.rs"; exit 1; }
 	cd runner && $(CARGO) build --release
