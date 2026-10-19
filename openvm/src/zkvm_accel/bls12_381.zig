@@ -673,7 +673,7 @@ fn g2InSubgroup(p: *const [192]u8) bool {
 // step; constants are generated from it into bls12_381_map_constants.zig.
 // SWU and the isogeny work in homogeneous projective coordinates (x/z, y/z).
 
-const mc = @import("bls12_381_map_constants.zig");
+const mc = @import("zkvm_crypto").bls12_381_map_constants;
 
 const ONE_FP2: Fp2 align(8) = ONE_FQ ++ ZERO_FQ;
 const ZERO_FP2: Fp2 align(8) = .{0} ** 96;

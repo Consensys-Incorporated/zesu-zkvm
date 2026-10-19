@@ -9,11 +9,12 @@
 const std = @import("std");
 const secp256k1 = @import("secp256k1.zig");
 const secp256r1 = @import("secp256r1.zig");
-const ripemd160_impl = @import("ripemd160.zig");
-const modexp_impl = @import("modexp.zig");
+const crypto = @import("zkvm_crypto");
+const ripemd160_impl = crypto.ripemd160;
+const modexp_impl = crypto.modexp;
 const bn254_impl = @import("bn254.zig");
 const bls12_impl = @import("bls12_381.zig");
-const blake2f_impl = @import("blake2f.zig");
+const blake2f_impl = crypto.blake2f;
 
 // ── Hashes ────────────────────────────────────────────────────────────────────
 
