@@ -136,6 +136,10 @@ the OpenVM and SP1 targets use the same word.
   alignment rules interact, so when moving to a newer Pico (or Zig) it is a candidate for
   removal: delete it, drop the two `addAssemblyFile("src/memops.S")` lines in `build.zig`, and
   compare cycle counts to see whether it still pays for itself.
+- **Execute-only runs use the untraced emulator.** The runner calls `RiscvEmulator::run_fast`
+  (Pico's "simple" mode) directly. Going through `RiscvProver::emulate` records every event for
+  proving and was 2-3x slower (mainnet vector 37s vs 16s, sepolia 44s vs 13s). `-p` still takes
+  the full proving path.
 - **Program limits:** at most 2²² instructions (zesu is about 250k), and segments must start at
   `0x10000` or above.
 
@@ -160,11 +164,39 @@ contains.)
 ```sh
 make runner                       # Rust runner (pinned nightly via rust-toolchain)
 make                              # guest ELF -> zig-out/bin/zesu-pico
-make test                         # execute all vectors
-make run INPUT=../vectors/sepolia_amsterdam_11856500.bin
+make test                         # execute all vectors and compare with expected output
+make run INPUT=../vectors/sepolia_amsterdam_11856500.bin     # execute, print execution stats
+make trace INPUT=../vectors/sepolia_amsterdam_11856500.bin   # execute, print stats + trace report
+make prove INPUT=../vectors/sepolia_amsterdam_11856500.bin   # also prove and verify (slow)
 ```
 
-Set `RUST_LOG=info` to see the guest's `zkvm_log` output.
+`run`, `trace` and `prove` require `INPUT`. All of them build the guest and runner first. Set
+`RUST_LOG=info` to see the guest's `zkvm_log` output.
+
+- **`make run`** executes without recording a trace (the fast path) and prints the `-X` report:
+  cycles, throughput and per-syscall counts, like `ziskemu -X` but counts only, since Pico has no
+  per-category cost model.
+- **`make trace`** runs the emulator in trace mode and prints the `-X` report followed by a
+  trace report built from the prover events Pico records: chunk count, events per chip, the
+  instruction mix, and the top functions by cycles (each cpu event's PC attributed to the ELF's
+  symbols). It is 3-4x slower than `make run` (sepolia vector: ~60s vs 13s); records are
+  aggregated per chunk as they arrive.
+- **`make prove`** generates and verifies a RISCV-phase proof; no stats are printed.
+
+The same modes are available from the build system and the runner directly:
+
+```sh
+zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin             # execute
+zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin -- -X       # + stats
+zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin -- -T       # + trace
+zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin -Dprove     # prove
+runner/target/release/zesu-pico-runner -e zig-out/bin/zesu-pico -i <block.bin> [-X] [-T] [-p] [-o out]
+```
+
+Runner flags: `-X` execution stats, `-T` trace report (implies `-X`), `-p` prove, `-o` write the
+guest's public values to a file. Flags go after `--` for `zig build run`; `make` takes no runner
+flags, which is why `run`/`trace`/`prove` are separate targets. `zig build run` without
+`-Dinput` fails with a message saying so.
 
 ## Next steps
 

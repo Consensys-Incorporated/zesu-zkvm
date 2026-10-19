@@ -3253,6 +3253,7 @@ dependencies = [
 name = "zesu-pico-runner"
 version = "0.1.0"
 dependencies = [
+ "elf",
  "eyre",
  "pico-vm",
 ]

@@ -11,7 +11,9 @@
 # Usage:
 #   make runner               — build the Rust host runner
 #   make                      — build the Zig guest ELF
-#   make run INPUT=<file>     — build and execute end-to-end
+#   make run INPUT=<file>     — build and execute end-to-end, printing execution stats (-X)
+#   make trace INPUT=<file>   — as run, plus the trace report (events per chip, instruction mix, hot
+#                               functions); several times slower
 #   make prove INPUT=<file>   — also generate + verify a RISCV-phase proof (slow)
 #   make test                 — execute all test vectors (VECTORS=<files> for a subset)
 #   make unit                 — native unit tests of the curve code
@@ -38,7 +40,7 @@ VECTORS ?= ../vectors/*.bin
 # output length (the runner writes exactly the bytes the guest put on fd 3).
 SSZ_OUTPUT_LEN ?= 43
 
-.PHONY: all runner run prove test selftest unit bless clean clean-runner
+.PHONY: all runner run trace prove test selftest unit bless clean clean-runner
 
 all:
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
@@ -51,7 +53,11 @@ runner:
 
 run: all runner
 	@test -n "$(INPUT)" || { echo "ERROR: INPUT is required: make run INPUT=path/to/block.bin" >&2; exit 1; }
-	$(RUNNER) -e $(ELF) -i $(INPUT)
+	$(RUNNER) -X -e $(ELF) -i $(INPUT)
+
+trace: all runner
+	@test -n "$(INPUT)" || { echo "ERROR: INPUT is required: make trace INPUT=path/to/block.bin" >&2; exit 1; }
+	$(RUNNER) -T -e $(ELF) -i $(INPUT)
 
 # Native unit tests of the curve code (software field backend; no VM needed).
 unit:
