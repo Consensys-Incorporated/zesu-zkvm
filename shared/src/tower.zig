@@ -3,7 +3,8 @@
 ///
 /// Generic over the base-field backend (soft.zig contract). If the backend also declares
 /// `fp2_add / fp2_sub / fp2_mul` (in place on [2*limbs]u64 = c0‖c1) those are used for Fp2,
-/// which maps straight onto Pico's FP2_* syscalls; otherwise Fp2 is built from Fp ops.
+/// which maps straight onto a zkVM's Fp2 accelerators (e.g. Pico's FP2_* syscalls); otherwise Fp2
+/// is built from Fp ops.
 const std = @import("std");
 const field = @import("field.zig");
 const soft = @import("soft.zig");
@@ -357,7 +358,7 @@ test "tower over BLS12-381 (ξ = 1+u)" {
 }
 
 /// Soft backend that also declares native Fp2 ops, to exercise the `has_native` path
-/// (the same layout contract as Pico's FP2_* syscalls) natively.
+/// (the layout contract of zkVM Fp2 accelerators such as Pico's FP2_* syscalls) natively.
 fn SoftWithFp2(comptime n: usize, comptime mod: [n]u64) type {
     const S = soft.Soft(n, mod);
     return struct {

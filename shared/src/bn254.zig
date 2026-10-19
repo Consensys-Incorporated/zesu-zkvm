@@ -13,13 +13,14 @@
 /// the precompile must fail; `true` means success, and for pairing the check result is in
 /// `verified` (an empty pair list verifies true; pairs with an identity point contribute 1).
 ///
-/// Natively (`zig test`) the backend is soft.zig. A zkVM target instantiates `Impl` with its own
-/// backend (Pico: FP_* / FP2_* syscalls, plus BN254_ADD / BN254_DOUBLE through optional
-/// `g1_add` / `g1_double`, see pico/src/zkvm_accel/bn254.zig):
+/// Natively (`zig test`) the backend is soft.zig. A zkVM target instantiates `Impl` with a backend
+/// built on its own accelerators: field ops, optionally Fp2 ops (`fp2_*`), and optionally G1
+/// point ops (`g1_add` / `g1_double`). Pico is the worked example: FP_* / FP2_* syscalls plus
+/// BN254_ADD / BN254_DOUBLE (see pico/src/zkvm_accel/bn254.zig).
 ///   * G1 add / double use the backend's `g1_add` / `g1_double` when it provides them, else
-///     affine formulas on the field ops. Pico panics the VM when the two points are equal and
-///     returns garbage for P = -Q or the identity, so the callers here always special-case
-///     those before reaching the precompile.
+///     affine formulas on the field ops. Point accelerators are typically plain affine P+Q
+///     (Pico's abort the VM when the two points are equal and return garbage for P = -Q or the
+///     identity), so the callers here always special-case those before reaching them.
 ///   * G2 and the optimal-ate pairing: affine Fp2 arithmetic in Zig, line functions on the
 ///     D-type sextic twist, final exponentiation with a plain exponentiation for the hard part
 ///     (cycle cost is irrelevant next to correctness).

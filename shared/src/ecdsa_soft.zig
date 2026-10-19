@@ -1,7 +1,8 @@
 /// Software ECDSA over secp256k1 / secp256r1 using std.crypto.pcurves.
 ///
-/// Correctness baseline until the Pico SECP256K1_* / SECP256R1_* precompiles are
-/// wired in (they would replace the scalar-multiplication core here).
+/// Correctness baseline for the accelerated ECDSA in secp.zig: a target with elliptic-curve
+/// precompiles (e.g. Pico's SECP256K1_* / SECP256R1_*) can replace the scalar-multiplication core
+/// here, and this version is what it is tested against.
 const std = @import("std");
 
 const Secp256k1 = std.crypto.ecc.Secp256k1;

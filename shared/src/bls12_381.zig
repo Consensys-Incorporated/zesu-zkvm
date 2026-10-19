@@ -16,9 +16,10 @@
 /// returned. add does NOT subgroup-check (EIP-2537); empty pairing / MSM inputs are accepted.
 ///
 /// Design. Everything is generic over a base-field backend, so the same code runs natively under
-/// `zig test` on a software backend and in a guest on the zkVM's field syscalls (Pico:
-/// FP_* / FP2_*, plus BLS12381_ADD / BLS12381_DOUBLE for G1 through an optional `ec_add` /
-/// `ec_double`; see pico/src/zkvm_accel/bls12_381.zig). Without a pairing precompile the pairing
+/// `zig test` on a software backend and in a guest on the zkVM's accelerators: field ops,
+/// optionally Fp2 ops (`fp2_*`), and optionally G1 point ops (`ec_add` / `ec_double`). Pico is the
+/// worked example (FP_* / FP2_* syscalls plus BLS12381_ADD / BLS12381_DOUBLE; see
+/// pico/src/zkvm_accel/bls12_381.zig). Without a pairing precompile the pairing
 /// is a plain optimal-ate Miller loop on the M-twist plus a final exponentiation whose hard part
 /// is a straight exponentiation by (p^4 - p^2 + 1)/r. Unlike OpenVM's kzgVerify, which emits a
 /// pairing hint and returns true, kzgPointEval really checks the pairing equation.
@@ -101,8 +102,8 @@ fn hex(comptime n: usize, comptime s: *const [2 * n]u8) [n]u8 {
 // ── Generic short-Weierstrass curve (a = 0) over F with y² = x³ + b ─────────
 //
 // F is a field type exposing add/sub/mul/sq/dbl/neg/inv/isZero/eql/zero/one on values of
-// type E. `Hw` is `void`, or a type with add/double on [2]E affine points (Pico's G1
-// precompiles): then scalar multiplication runs in affine coordinates with one precompile call
+// type E. `Hw` is `void`, or a type with add/double on [2]E affine points (a zkVM's G1 point
+// accelerators, e.g. Pico's BLS12381_ADD / BLS12381_DOUBLE): then scalar multiplication runs in affine coordinates with one precompile call
 // per group operation, otherwise in Jacobian coordinates with a single inversion at the end.
 
 fn Curve(comptime F: type, comptime E: type, comptime b_coeff: E, comptime Hw: type) type {
@@ -227,7 +228,8 @@ fn Curve(comptime F: type, comptime E: type, comptime b_coeff: E, comptime Hw: t
     };
 }
 
-/// G1 point ops on Pico's BLS12381_ADD / BLS12381_DOUBLE: affine, x‖y little-endian limbs.
+/// G1 point ops on a backend's `ec_add` / `ec_double` accelerators (e.g. Pico's BLS12381_ADD /
+/// BLS12381_DOUBLE): affine, x‖y little-endian limbs.
 fn G1Hw(comptime B: type, comptime Fe: type) type {
     return struct {
         pub fn add(p: [2]Fe, q: [2]Fe) [2]Fe {
@@ -250,7 +252,7 @@ fn G1Hw(comptime B: type, comptime Fe: type) type {
     };
 }
 
-// ── Pair types (layout-compatible with the extern structs in pico_host.zig) ──
+// ── Pair types (the layout of the zkVM host ABI's pair structs, e.g. pico_host.zig) ──
 
 pub const G1MsmPair = extern struct { point: [96]u8, scalar: [32]u8 };
 pub const G2MsmPair = extern struct { point: [192]u8, scalar: [32]u8 };

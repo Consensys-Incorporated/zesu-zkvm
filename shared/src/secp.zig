@@ -10,10 +10,11 @@
 /// `Ecdsa(FpB, FnB, Pts, Params)` is generic over three backends:
 ///   FpB   base field backend       FnB   scalar field backend       Pts   affine point ops
 /// Natively (`zig test`) they are soft.zig field arithmetic and the software point ops below. A
-/// zkVM target instantiates it with its own accelerated backends (Pico: pico_fp.zig field ops and
-/// the SECP256K1_* / SECP256R1_* point syscalls, see pico/src/zkvm_accel/secp.zig).
-/// Pico's point syscalls do plain affine P+Q: they abort the VM for P == Q and return garbage
-/// for P == -Q or the identity, so this file does all of that case analysis itself.
+/// zkVM target instantiates it with its own accelerated backends. Pico is the worked example:
+/// pico_fp.zig field ops and the SECP256K1_* / SECP256R1_* point syscalls (see
+/// pico/src/zkvm_accel/secp.zig).
+/// Point accelerators are typically plain affine P+Q (Pico's abort the VM for P == Q and return
+/// garbage for P == -Q or the identity), so this file does all of that case analysis itself.
 const std = @import("std");
 pub const field = @import("field.zig");
 pub const soft = @import("soft.zig");

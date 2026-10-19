@@ -5,8 +5,9 @@
 ///   modulus : [limbs]u64     the prime, little-endian limbs
 ///   add/sub/mul(x: *[limbs]u64, y: *const [limbs]u64) void
 ///             in-place:  x = x op y  (mod modulus), canonical in and out
-/// which is exactly the shape of Pico's FP_ADD / FP_SUB / FP_MUL syscalls, so the same
-/// curve code runs on the syscalls in the guest and on this backend under `zig test`.
+/// which is the shape of a zkVM's modular-arithmetic accelerators (e.g. Pico's FP_ADD / FP_SUB /
+/// FP_MUL syscalls, which work in place on limb arrays), so the same curve code runs on the
+/// accelerators in a guest and on this backend under `zig test`.
 const std = @import("std");
 
 pub fn Soft(comptime n: usize, comptime mod: [n]u64) type {
