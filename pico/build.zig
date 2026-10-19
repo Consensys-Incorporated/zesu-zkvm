@@ -76,6 +76,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addObject(zesu_obj);
     exe.root_module.addObject(host_obj);
     exe.root_module.addAssemblyFile(b.path("src/startup.S"));
+    exe.root_module.addAssemblyFile(b.path("src/memops.S"));
     exe.setLinkerScript(b.path("pico.ld"));
 
     b.installArtifact(exe);
@@ -109,14 +110,25 @@ pub fn build(b: *std.Build) void {
     selftest_exe.root_module.addObject(selftest_obj);
     selftest_exe.root_module.addObject(host_obj);
     selftest_exe.root_module.addAssemblyFile(b.path("src/startup.S"));
+    selftest_exe.root_module.addAssemblyFile(b.path("src/memops.S"));
     selftest_exe.setLinkerScript(b.path("pico.ld"));
     const selftest_step = b.step("selftest", "Build the crypto self-test guest (zesu-pico-selftest)");
     selftest_step.dependOn(&b.addInstallArtifact(selftest_exe, .{}).step);
 
     // Run step: execute via the Rust runner binary (build it with `make runner`).
-    const run_step = b.step("run", "Run via Pico runner (cargo build runner first)");
+    // `zig build run -Dinput=../vectors/<block>.bin [-Dprove]`; extra args after `--` go to the runner.
+    const run_step = b.step("run", "Run via Pico runner (cargo build runner first); needs -Dinput=<block.bin>");
+    const input_path = b.option([]const u8, "input", "block input file for `zig build run`");
+    const prove = b.option(bool, "prove", "generate + verify a RISCV-phase proof in `zig build run` (slow)") orelse false;
     const run_cmd = b.addSystemCommand(&.{"runner/target/release/zesu-pico-runner"});
+    if (prove) run_cmd.addArg("-p");
+    run_cmd.addArg("-e");
     run_cmd.addArtifactArg(exe);
+    if (input_path) |input| {
+        run_cmd.addArgs(&.{ "-i", input });
+    } else {
+        run_step.dependOn(&b.addFail("`zig build run` needs a block: zig build run -Dinput=../vectors/mainnet_fusaka_24758573.bin").step);
+    }
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);

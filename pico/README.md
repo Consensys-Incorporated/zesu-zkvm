@@ -23,8 +23,8 @@ compressed instructions.
 
 `make test` executes each vector on Pico's VM and compares the guest's output with the expected
 output: the SSZ root of the block's new-payload request, plus `valid`, chain id and schema id.
-Both vectors match in full (`sepolia_amsterdam_11856500`: 728M cycles; `mainnet_fusaka_24758573`:
-899M cycles, which includes one KZG point evaluation). So RISC-V execution of zesu on Pico's VM
+Both vectors match in full (`sepolia_amsterdam_11856500`: 695M cycles; `mainnet_fusaka_24758573`:
+417M cycles, which includes one KZG point evaluation). So RISC-V execution of zesu on Pico's VM
 reaches the correct result for full blocks. This target is for execution; it is not used to
 generate proofs.
 
@@ -127,6 +127,15 @@ the OpenVM and SP1 targets use the same word.
   this target builds zesu for strict alignment (see "How zesu is built").
 - **Precompile data layout:** pointers must be 8-byte aligned, and data is arrays of `u64` (a
   SHA-256 word occupies the low half of each `u64`).
+- **Optimization workaround: `src/memops.S`.** Hand-written word-wise `memcpy`/`memset` that
+  override Zig's `compiler_rt` versions, which copy to an unaligned destination with eight byte
+  stores per 8 bytes (about 2.8 cycles/byte). Profiling the mainnet vector showed `memcpy` at 62%
+  of all cycles, mostly the BLS12-381 tower code copying field elements for the KZG check; this
+  file roughly halved the total (899M to 450M cycles), and `tower.zig` passing operands by
+  pointer took it to 417M. It exists only because of how Zig's generic `memcpy` and Pico's
+  alignment rules interact, so when moving to a newer Pico (or Zig) it is a candidate for
+  removal: delete it, drop the two `addAssemblyFile("src/memops.S")` lines in `build.zig`, and
+  compare cycle counts to see whether it still pays for itself.
 - **Program limits:** at most 2²² instructions (zesu is about 250k), and segments must start at
   `0x10000` or above.
 

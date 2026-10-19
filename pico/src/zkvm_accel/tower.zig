@@ -24,32 +24,38 @@ pub fn Tower(comptime B: type, comptime xi_c0: u64, comptime xi_c1: u64) type {
 
             const has_native = @hasDecl(B, "fp2_mul");
 
-            pub fn add(a: Fp2, b: Fp2) Fp2 {
+            /// Copy of `a` as straight-line word moves. A by-value copy of this 8-byte-aligned
+            /// struct otherwise becomes a `memcpy` call, which dominated the pairing's cost.
+            inline fn dup(a: *const Fp2) Fp2 {
+                var r: Fp2 = undefined;
+                const src: *const [2 * Fp.N]u64 = @ptrCast(a);
+                const dst: *[2 * Fp.N]u64 = @ptrCast(&r);
+                inline for (0..2 * Fp.N) |i| dst[i] = src[i];
+                return r;
+            }
+
+            // The `*P` forms take operands by pointer: a by-value Fp2 argument is copied to a
+            // temporary (a `memcpy` call), and the tower code below calls these in bulk.
+            pub fn addP(a: *const Fp2, b: *const Fp2) Fp2 {
                 if (has_native) {
-                    var r = a;
-                    B.fp2_add(@ptrCast(&r), @ptrCast(&b));
+                    var r = dup(a);
+                    B.fp2_add(@ptrCast(&r), @ptrCast(b));
                     return r;
                 }
                 return .{ .c0 = Fp.add(a.c0, b.c0), .c1 = Fp.add(a.c1, b.c1) };
             }
-            pub fn sub(a: Fp2, b: Fp2) Fp2 {
+            pub fn subP(a: *const Fp2, b: *const Fp2) Fp2 {
                 if (has_native) {
-                    var r = a;
-                    B.fp2_sub(@ptrCast(&r), @ptrCast(&b));
+                    var r = dup(a);
+                    B.fp2_sub(@ptrCast(&r), @ptrCast(b));
                     return r;
                 }
                 return .{ .c0 = Fp.sub(a.c0, b.c0), .c1 = Fp.sub(a.c1, b.c1) };
             }
-            pub fn neg(a: Fp2) Fp2 {
-                return sub(zero, a);
-            }
-            pub fn dbl(a: Fp2) Fp2 {
-                return add(a, a);
-            }
-            pub fn mul(a: Fp2, b: Fp2) Fp2 {
+            pub fn mulP(a: *const Fp2, b: *const Fp2) Fp2 {
                 if (has_native) {
-                    var r = a;
-                    B.fp2_mul(@ptrCast(&r), @ptrCast(&b));
+                    var r = dup(a);
+                    B.fp2_mul(@ptrCast(&r), @ptrCast(b));
                     return r;
                 }
                 // (a0 + a1 u)(b0 + b1 u) = (a0b0 - a1b1) + (a0b1 + a1b0) u
@@ -59,6 +65,21 @@ pub fn Tower(comptime B: type, comptime xi_c0: u64, comptime xi_c1: u64) type {
                 const t3 = Fp.mul(a.c1, b.c0);
                 return .{ .c0 = Fp.sub(t0, t1), .c1 = Fp.add(t2, t3) };
             }
+            pub fn add(a: Fp2, b: Fp2) Fp2 {
+                return addP(&a, &b);
+            }
+            pub fn sub(a: Fp2, b: Fp2) Fp2 {
+                return subP(&a, &b);
+            }
+            pub fn neg(a: Fp2) Fp2 {
+                return sub(zero, a);
+            }
+            pub fn dbl(a: Fp2) Fp2 {
+                return add(a, a);
+            }
+            pub fn mul(a: Fp2, b: Fp2) Fp2 {
+                return mulP(&a, &b);
+            }
             pub fn sq(a: Fp2) Fp2 {
                 return mul(a, a);
             }
@@ -66,7 +87,7 @@ pub fn Tower(comptime B: type, comptime xi_c0: u64, comptime xi_c1: u64) type {
                 return .{ .c0 = Fp.mul(a.c0, k), .c1 = Fp.mul(a.c1, k) };
             }
             pub fn mulByXi(a: Fp2) Fp2 {
-                return mul(a, xi);
+                return mulP(&a, &xi);
             }
             pub fn conj(a: Fp2) Fp2 {
                 return .{ .c0 = a.c0, .c1 = Fp.neg(a.c1) };
@@ -120,26 +141,43 @@ pub fn Tower(comptime B: type, comptime xi_c0: u64, comptime xi_c1: u64) type {
             pub const one = Fp6{ .c0 = Fp2.one, .c1 = Fp2.zero, .c2 = Fp2.zero };
 
             pub fn add(a: Fp6, b: Fp6) Fp6 {
-                return .{ .c0 = Fp2.add(a.c0, b.c0), .c1 = Fp2.add(a.c1, b.c1), .c2 = Fp2.add(a.c2, b.c2) };
+                return addP(&a, &b);
             }
             pub fn sub(a: Fp6, b: Fp6) Fp6 {
-                return .{ .c0 = Fp2.sub(a.c0, b.c0), .c1 = Fp2.sub(a.c1, b.c1), .c2 = Fp2.sub(a.c2, b.c2) };
+                return subP(&a, &b);
+            }
+            pub fn addP(a: *const Fp6, b: *const Fp6) Fp6 {
+                return .{ .c0 = Fp2.addP(&a.c0, &b.c0), .c1 = Fp2.addP(&a.c1, &b.c1), .c2 = Fp2.addP(&a.c2, &b.c2) };
+            }
+            pub fn subP(a: *const Fp6, b: *const Fp6) Fp6 {
+                return .{ .c0 = Fp2.subP(&a.c0, &b.c0), .c1 = Fp2.subP(&a.c1, &b.c1), .c2 = Fp2.subP(&a.c2, &b.c2) };
             }
             pub fn neg(a: Fp6) Fp6 {
                 return sub(zero, a);
             }
             pub fn mul(a: Fp6, b: Fp6) Fp6 {
+                return mulP(&a, &b);
+            }
+            pub fn mulP(a: *const Fp6, b: *const Fp6) Fp6 {
                 // v³ = ξ
-                const a0b0 = Fp2.mul(a.c0, b.c0);
-                const a1b1 = Fp2.mul(a.c1, b.c1);
-                const a2b2 = Fp2.mul(a.c2, b.c2);
-                const t0 = Fp2.add(Fp2.mul(a.c1, b.c2), Fp2.mul(a.c2, b.c1));
-                const t1 = Fp2.add(Fp2.mul(a.c0, b.c1), Fp2.mul(a.c1, b.c0));
-                const t2 = Fp2.add(Fp2.mul(a.c0, b.c2), Fp2.mul(a.c2, b.c0));
+                const a0b0 = Fp2.mulP(&a.c0, &b.c0);
+                const a1b1 = Fp2.mulP(&a.c1, &b.c1);
+                const a2b2 = Fp2.mulP(&a.c2, &b.c2);
+                const m12 = Fp2.mulP(&a.c1, &b.c2);
+                const m21 = Fp2.mulP(&a.c2, &b.c1);
+                const m01 = Fp2.mulP(&a.c0, &b.c1);
+                const m10 = Fp2.mulP(&a.c1, &b.c0);
+                const m02 = Fp2.mulP(&a.c0, &b.c2);
+                const m20 = Fp2.mulP(&a.c2, &b.c0);
+                const t0 = Fp2.addP(&m12, &m21);
+                const t1 = Fp2.addP(&m01, &m10);
+                const t2 = Fp2.addP(&m02, &m20);
+                const x0 = Fp2.mulP(&t0, &Fp2.xi);
+                const x2 = Fp2.mulP(&a2b2, &Fp2.xi);
                 return .{
-                    .c0 = Fp2.add(a0b0, Fp2.mulByXi(t0)),
-                    .c1 = Fp2.add(t1, Fp2.mulByXi(a2b2)),
-                    .c2 = Fp2.add(t2, a1b1),
+                    .c0 = Fp2.addP(&a0b0, &x0),
+                    .c1 = Fp2.addP(&t1, &x2),
+                    .c2 = Fp2.addP(&t2, &a1b1),
                 };
             }
             pub fn sq(a: Fp6) Fp6 {
@@ -183,11 +221,16 @@ pub fn Tower(comptime B: type, comptime xi_c0: u64, comptime xi_c1: u64) type {
                 return .{ .c0 = Fp6.sub(a.c0, b.c0), .c1 = Fp6.sub(a.c1, b.c1) };
             }
             pub fn mul(a: Fp12, b: Fp12) Fp12 {
+                return mulP(&a, &b);
+            }
+            pub fn mulP(a: *const Fp12, b: *const Fp12) Fp12 {
                 // w² = v
-                const a0b0 = Fp6.mul(a.c0, b.c0);
-                const a1b1 = Fp6.mul(a.c1, b.c1);
-                const cross = Fp6.add(Fp6.mul(a.c0, b.c1), Fp6.mul(a.c1, b.c0));
-                return .{ .c0 = Fp6.add(a0b0, Fp6.mulByV(a1b1)), .c1 = cross };
+                const a0b0 = Fp6.mulP(&a.c0, &b.c0);
+                const a1b1 = Fp6.mulP(&a.c1, &b.c1);
+                const m01 = Fp6.mulP(&a.c0, &b.c1);
+                const m10 = Fp6.mulP(&a.c1, &b.c0);
+                const v = Fp6.mulByV(a1b1);
+                return .{ .c0 = Fp6.addP(&a0b0, &v), .c1 = Fp6.addP(&m01, &m10) };
             }
             pub fn sq(a: Fp12) Fp12 {
                 return mul(a, a);
