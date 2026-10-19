@@ -143,6 +143,26 @@ the OpenVM and SP1 targets use the same word.
 - **Program limits:** at most 2²² instructions (zesu is about 250k), and segments must start at
   `0x10000` or above.
 
+## Provenance of the pure-Zig crypto
+
+Where an operation is not (fully) done by a Pico precompile, the Zig implementation is below. None
+of it is a port of another project's source; each follows a public specification or textbook
+algorithm, listed here so the lineage is clear. Only sources the code or its tests already cite are
+named. If a piece was in fact adapted from somewhere else, add it here.
+
+| Code | Not accelerated | Follows / checked against |
+|---|---|---|
+| `ripemd160.zig`, `blake2f.zig`, `modexp.zig` (shared with `openvm/`) | whole primitive (no Pico precompile) | RIPEMD-160: Dobbertin, Bosselaers, Preneel's reference description (<https://homes.esat.kuleuven.be/~bosselae/ripemd160.html>). BLAKE2f: RFC 7693 §3.2 and EIP-152. modexp: EIP-198. |
+| `secp.zig` | scalar-field arithmetic and ECDSA/recovery logic (Pico supplies affine point add/double and `UINT256_MUL`) | ECDSA verify and public-key recovery as in SEC 1 / FIPS 186; two-scalar multiplication by Shamir's trick. Differentially tested against `std.crypto` (`ecdsa_soft.zig`). |
+| `bn254.zig` | G2 arithmetic, optimal-ate pairing, final exponentiation | EIP-196 / EIP-197; optimal ate pairing (Vercauteren, "Optimal pairings", 2008) with a plain exponentiation for the hard part of the final exponentiation. Tested against the EIP-196/197 vectors. |
+| `bls12_381.zig` | G2 arithmetic, optimal-ate pairing, final exponentiation, KZG check | EIP-2537 and EIP-4844; same pairing structure as BN254, on the M-type twist. Tested against the Besu EIP-2537 CSVs (from the pinned zesu) and the c-kzg-4844 `verify_kzg_proof` vectors. |
+| `bls12_381.zig` map-to-curve | MAP_FP_TO_G1 / MAP_FP2_TO_G2 | RFC 9380 simplified SWU plus the isogeny. The isogeny constants (`bls12_381_map_constants.zig`) are generated from `py_ecc`, the library EELS uses for EIP-2537. |
+| `tower.zig` | Fp2/Fp6/Fp12 extension tower (Fp2 ops use `FP2_*` syscalls) | Standard tower construction; Frobenius coefficients ξ^((p^k-1)/6) derived at runtime. |
+| `memops.S` | (not crypto) | Original word-wise `memcpy`/`memset`; see "Other Pico specifics". |
+
+The KZG check is a real pairing equation. OpenVM's `kzgVerify`, by contrast, emits a pairing hint
+and returns true.
+
 ## How zesu is built
 
 zesu is not linked from a published object. `build.zig.zon` pins a zesu commit as a Zig package
