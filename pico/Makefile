@@ -59,9 +59,10 @@ trace: all runner
 	@test -n "$(INPUT)" || { echo "ERROR: INPUT is required: make trace INPUT=path/to/block.bin" >&2; exit 1; }
 	$(RUNNER) -T -e $(ELF) -i $(INPUT)
 
-# Native unit tests of the curve code (software field backend; no VM needed).
+# Native unit tests of the curve code (software field backend; no VM needed). The code and its
+# tests live in ../shared, which every zkVM target uses.
 unit:
-	$(ZIG) build test -Doptimize=ReleaseFast $(ZIG_FLAGS)
+	cd ../shared && $(ZIG) build test -Doptimize=ReleaseFast
 
 # Run the crypto modules on Pico's VM: syscall path vs software path + known answers.
 selftest: runner

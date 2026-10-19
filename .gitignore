@@ -30,6 +30,9 @@ pico/.zig-cache/
 pico/zig-out
 pico/zig-pkg
 
+# shared native-test build tree (zig-pkg holds the fetched zesu dependency)
+shared/zig-pkg
+
 # OS
 .DS_Store
 Thumbs.db

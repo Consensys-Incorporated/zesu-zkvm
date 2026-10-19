@@ -13,7 +13,7 @@ compressed instructions.
 |---|---|
 | RISC-V execution of zesu on Pico's VM | yes — both vectors run to completion and match in full |
 | keccak256, sha256 | Pico precompiles |
-| ripemd160, modexp, blake2f | pure Zig, shared with `openvm/` |
+| ripemd160, modexp, blake2f | pure Zig, in [`../shared`](../shared/README.md) (shared with `openvm/`) |
 | ecrecover, secp256k1/secp256r1 verify | Pico curve precompiles (`SECP256K1_*`, `SECP256R1_*`) plus `UINT256_MUL` for scalar arithmetic |
 | bn254 G1 add/mul | Pico `BN254_ADD`/`BN254_DOUBLE` |
 | bn254 pairing | Zig optimal-ate pairing on the `BN254_FP*` / `FP2*` precompiles (~20M cycles per pair) |
@@ -30,13 +30,14 @@ generate proofs.
 
 ### Testing the crypto
 
-The curve code (`src/zkvm_accel/secp.zig`, `bn254.zig`, `bls12_381.zig`) is generic over a field
-backend: the guest uses Pico's precompiles (`pico_fp.zig`), and tests use a software backend
-(`soft.zig`), so the same algorithms are checked in two places.
+The curve code is generic over a field backend and lives in [`../shared`](../shared/README.md):
+the guest instantiates it with Pico's precompiles (`src/zkvm_accel/{secp,bn254,bls12_381}.zig`
+with `pico_fp.zig`), and the native tests use a software backend (`shared/src/soft.zig`), so the
+same algorithms are checked in two places.
 
-- `make unit` — native unit tests (about a minute): the official EIP-196/197/2537 vectors, c-kzg
-  KZG vectors, ECDSA differential tests against `std.crypto`, and property tests (bilinearity,
-  subgroup orders, Frobenius).
+- `make unit` — native unit tests (runs `zig build test` in `../shared`; about a minute): the
+  official EIP-196/197/2537 vectors, c-kzg KZG vectors, ECDSA differential tests against
+  `std.crypto`, and property tests (bilinearity, subgroup orders, Frobenius).
 - `make selftest` — runs the same modules on Pico's VM and compares the precompile-backed path
   against software and known answers (about two minutes; `-Dselftest=secp|bn254|bls` runs one).
 
@@ -145,23 +146,22 @@ the OpenVM and SP1 targets use the same word.
 
 ## Provenance of the pure-Zig crypto
 
-Where an operation is not (fully) done by a Pico precompile, the Zig implementation is below. None
+Where a operation specified by zkvm [c accelerator standards](https://github.com/eth-act/zkevm-standards/tree/main/standards/c-interface-accelerators) is not yet or fully implemented by a Pico precompile, a claude-generated Zig implementation is below. None
 of it is a port of another project's source; each follows a public specification or textbook
-algorithm, listed here so the lineage is clear. Only sources the code or its tests already cite are
+algorithm, listed here so the lineage is clear. The algorithms live in `../shared/src` (see its
+README); the `src/zkvm_accel` files here are the Pico backends that instantiate them. Only sources the code or its tests already cite are
 named. If a piece was in fact adapted from somewhere else, add it here.
 
 | Code | Not accelerated | Follows / checked against |
 |---|---|---|
-| `ripemd160.zig`, `blake2f.zig`, `modexp.zig` (shared with `openvm/`) | whole primitive (no Pico precompile) | RIPEMD-160: Dobbertin, Bosselaers, Preneel's reference description (<https://homes.esat.kuleuven.be/~bosselae/ripemd160.html>). BLAKE2f: RFC 7693 §3.2 and EIP-152. modexp: EIP-198. |
-| `secp.zig` | scalar-field arithmetic and ECDSA/recovery logic (Pico supplies affine point add/double and `UINT256_MUL`) | ECDSA verify and public-key recovery as in SEC 1 / FIPS 186; two-scalar multiplication by Shamir's trick. Differentially tested against `std.crypto` (`ecdsa_soft.zig`). |
-| `bn254.zig` | G2 arithmetic, optimal-ate pairing, final exponentiation | EIP-196 / EIP-197; optimal ate pairing (Vercauteren, "Optimal pairings", 2008) with a plain exponentiation for the hard part of the final exponentiation. Tested against the EIP-196/197 vectors. |
-| `bls12_381.zig` | G2 arithmetic, optimal-ate pairing, final exponentiation, KZG check | EIP-2537 and EIP-4844; same pairing structure as BN254, on the M-type twist. Tested against the Besu EIP-2537 CSVs (from the pinned zesu) and the c-kzg-4844 `verify_kzg_proof` vectors. |
-| `bls12_381.zig` map-to-curve | MAP_FP_TO_G1 / MAP_FP2_TO_G2 | RFC 9380 simplified SWU plus the isogeny. The isogeny constants (`bls12_381_map_constants.zig`) are generated from `py_ecc`, the library EELS uses for EIP-2537. |
-| `tower.zig` | Fp2/Fp6/Fp12 extension tower (Fp2 ops use `FP2_*` syscalls) | Standard tower construction; Frobenius coefficients ξ^((p^k-1)/6) derived at runtime. |
+| `shared/src/{ripemd160,blake2f,modexp}.zig` | whole primitive (no Pico precompile) | RIPEMD-160: Dobbertin, Bosselaers, Preneel's reference description (<https://homes.esat.kuleuven.be/~bosselae/ripemd160.html>). BLAKE2f: RFC 7693 §3.2 and EIP-152. modexp: EIP-198. |
+| `shared/src/secp.zig` + `src/zkvm_accel/secp.zig` | scalar-field arithmetic and ECDSA/recovery logic (Pico supplies affine point add/double and `UINT256_MUL`) | ECDSA verify and public-key recovery as in SEC 1 / FIPS 186; two-scalar multiplication by Shamir's trick. Differentially tested against `std.crypto` (`ecdsa_soft.zig`). |
+| `shared/src/bn254.zig` + `src/zkvm_accel/bn254.zig` | G2 arithmetic, optimal-ate pairing, final exponentiation | EIP-196 / EIP-197; optimal ate pairing (Vercauteren, "Optimal pairings", 2008) with a plain exponentiation for the hard part of the final exponentiation. Tested against the EIP-196/197 vectors. |
+| `shared/src/bls12_381.zig` + `src/zkvm_accel/bls12_381.zig` | G2 arithmetic, optimal-ate pairing, final exponentiation, KZG check | EIP-2537 and EIP-4844; same pairing structure as BN254, on the M-type twist. Tested against the Besu EIP-2537 CSVs (from the pinned zesu) and the c-kzg-4844 `verify_kzg_proof` vectors. |
+| `shared/src/bls12_381.zig` map-to-curve | MAP_FP_TO_G1 / MAP_FP2_TO_G2 | RFC 9380 simplified SWU plus the isogeny. The isogeny constants (`bls12_381_map_constants.zig`) are generated from `py_ecc`, the library EELS uses for EIP-2537. |
+| `shared/src/tower.zig` | Fp2/Fp6/Fp12 extension tower (Fp2 ops use `FP2_*` syscalls) | Standard tower construction; Frobenius coefficients ξ^((p^k-1)/6) derived at runtime. |
 | `memops.S` | (not crypto) | Original word-wise `memcpy`/`memset`; see "Other Pico specifics". |
 
-The KZG check is a real pairing equation. OpenVM's `kzgVerify`, by contrast, emits a pairing hint
-and returns true.
 
 ## How zesu is built
 

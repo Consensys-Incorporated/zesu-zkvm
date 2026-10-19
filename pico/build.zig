@@ -36,15 +36,16 @@ pub fn build(b: *std.Build) void {
     const io_mod = mod.make(b, "src/zkvm_io.zig", target, optimize);
     io_mod.addImport("pico_sys", sys_mod);
 
+    // ── zkvm_crypto: the zkVM-independent crypto shared with the other targets (../shared) ───
+    const crypto_mod = mod.make(b, "../shared/src/zkvm_crypto.zig", target, optimize);
+
     // ── accel_impl: Pico precompiles + shared pure-Zig implementations ───────
     // keccak256/sha256: KECCAK_PERMUTE / SHA_EXTEND+SHA_COMPRESS precompiles.
-    // ripemd160/modexp/blake2f: the pure-Zig files shared with the openvm target.
+    // ripemd160/modexp/blake2f: pure Zig from zkvm_crypto. The curve code is zkvm_crypto's
+    // generic implementation instantiated with Pico's field/point syscalls (src/zkvm_accel).
     const accel_impl_mod = mod.make(b, "src/zkvm_accel/pico_accel.zig", target, optimize);
     accel_impl_mod.addImport("pico_sys", sys_mod);
-    accel_impl_mod.addImport("ripemd160", mod.make(b, "../openvm/src/zkvm_accel/ripemd160.zig", target, optimize));
-    accel_impl_mod.addImport("modexp", mod.make(b, "../openvm/src/zkvm_accel/modexp.zig", target, optimize));
-    accel_impl_mod.addImport("blake2f", mod.make(b, "../openvm/src/zkvm_accel/blake2f.zig", target, optimize));
-    accel_impl_mod.addImport("bls12_381_map_constants", mod.make(b, "../openvm/src/zkvm_accel/bls12_381_map_constants.zig", target, optimize));
+    accel_impl_mod.addImport("zkvm_crypto", crypto_mod);
 
     // ── Pico host object ──────────────────────────────────────────────────────
     const host_mod = b.createModule(.{
@@ -133,39 +134,5 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);
 
-    // ── Native unit tests: the curve code is generic over a field backend, so it is tested on the
-    // host with the software backend (soft.zig). Add new test roots here.
-    const native_target = b.graph.host;
-    const sys_native = b.createModule(.{
-        .root_source_file = b.path("src/pico_sys.zig"),
-        .target = native_target,
-        .optimize = optimize,
-    });
-    const test_step = b.step("test", "Run native unit tests (curve code on the software field backend)");
-    const test_roots = [_][]const u8{
-        "src/zkvm_accel/tower.zig",
-        "src/zkvm_accel/secp.zig",
-        "src/zkvm_accel/bn254.zig",
-        "src/zkvm_accel/bls12_381.zig",
-    };
-    for (test_roots) |root| {
-        const tmod = b.createModule(.{
-            .root_source_file = b.path(root),
-            .target = native_target,
-            .optimize = optimize,
-        });
-        tmod.addImport("pico_sys", sys_native);
-        if (std.mem.eql(u8, root, "src/zkvm_accel/bls12_381.zig")) {
-            // map-to-curve constants shared with openvm, and the Besu EIP-2537 CSV suites from the
-            // pinned zesu dependency (embedded by import name in the tests)
-            tmod.addImport("bls12_381_map_constants", mod.make(b, "../openvm/src/zkvm_accel/bls12_381_map_constants.zig", native_target, optimize));
-            for ([_][]const u8{ "g1_add", "g2_add", "g1_msm", "g2_msm", "pairing", "pairing_invalid_subgroup", "fp_to_g1", "fp2_to_g2" }) |name| {
-                tmod.addAnonymousImport(b.fmt("eip2537_{s}.csv", .{name}), .{
-                    .root_source_file = zesu_dep.path(b.fmt("src/evm/precompile/testdata/eip2537_{s}.csv", .{name})),
-                });
-            }
-        }
-        const t = b.addTest(.{ .root_module = tmod });
-        test_step.dependOn(&b.addRunArtifact(t).step);
-    }
+    // The native unit tests of the curve code live with the code, in ../shared (`make -C ../shared test`).
 }

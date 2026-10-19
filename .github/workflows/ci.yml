@@ -228,6 +228,10 @@ jobs:
         working-directory: pico
         run: zig fmt --check src/ build.zig
 
+      - name: Lint (shared)
+        working-directory: shared
+        run: zig fmt --check src/ build.zig
+
       - name: Build pico (ReleaseFast)
         working-directory: pico
         run: zig build -Doptimize=ReleaseFast
@@ -236,10 +240,10 @@ jobs:
         working-directory: pico
         run: make runner
 
-      # Native unit tests of the curve code: EIP vectors, KZG vectors, ECDSA differential tests.
-      - name: Unit tests (pico)
-        working-directory: pico
-        run: make unit
+      # Native unit tests of the shared crypto: EIP vectors, KZG vectors, ECDSA differential tests.
+      - name: Unit tests (shared)
+        working-directory: shared
+        run: zig build test -Doptimize=ReleaseFast
 
       # Execute every vector on Pico's VM and compare the output with its expected.hex.
       - name: Vectors (pico)

@@ -4,16 +4,14 @@
 ///   UintMod(modulus)                      any 256-bit prime, mul via UINT256_MUL — used for
 ///                                         secp256r1's field and the scalar fields (n, r)
 ///
-/// Only referenced from guest code; the curve files are generic over the backend so they can be
-/// unit-tested natively with soft.zig.
+/// Only referenced from guest code; the curve code in ../shared is generic over the backend so it
+/// can be unit-tested natively with soft.zig.
 const std = @import("std");
 const sys = @import("pico_sys");
+const crypto = @import("zkvm_crypto");
 
-pub const bn254_p: [4]u64 = .{ 0x3c208c16d87cfd47, 0x97816a916871ca8d, 0xb85045b68181585d, 0x30644e72e131a029 };
-pub const bls12381_p: [6]u64 = .{
-    0xb9feffffffffaaab, 0x1eabfffeb153ffff, 0x6730d2a0f6b0f624,
-    0x64774b84f38512bf, 0x4b1ba7b6434bacd7, 0x1a0111ea397fe69a,
-};
+pub const bn254_p: [4]u64 = crypto.bn254.bn_p;
+pub const bls12381_p: [6]u64 = crypto.bls12_381.P_LIMBS;
 pub const secp256k1_p: [4]u64 = .{ 0xfffffffefffffc2f, 0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff };
 
 pub const Bn254Fq = struct {

@@ -1,13 +1,15 @@
 /// Pico accel_impl: Pico precompiles for keccak256 and sha256; shared pure-Zig
 /// implementations for ripemd160, modexp and blake2f.
 ///
-/// Curve code lives in secp.zig, bn254.zig and bls12_381.zig (each generic over a field backend
-/// so it can be unit-tested natively; see soft.zig, field.zig, tower.zig, pico_fp.zig).
+/// Curve code: secp.zig, bn254.zig and bls12_381.zig instantiate shared/src's implementations,
+/// which are generic over a field backend and unit-tested natively there, with Pico's backends
+/// (pico_fp.zig field ops, plus the curve-point syscalls).
 const std = @import("std");
 const sys = @import("pico_sys");
-const ripemd160_impl = @import("ripemd160");
-const modexp_impl = @import("modexp");
-const blake2f_impl = @import("blake2f");
+const crypto = @import("zkvm_crypto");
+const ripemd160_impl = crypto.ripemd160;
+const modexp_impl = crypto.modexp;
+const blake2f_impl = crypto.blake2f;
 pub const secp = @import("secp.zig");
 pub const bn254 = @import("bn254.zig");
 pub const bls12_381 = @import("bls12_381.zig");
