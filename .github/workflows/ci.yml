@@ -296,6 +296,11 @@ jobs:
         working-directory: sp1
         run: zig build -Doptimize=ReleaseFast
 
+      # sp1-sdk's dependency crates compile .proto files at build time (prost-build), which
+      # needs protoc; the runner image does not ship it.
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends protobuf-compiler
+
       - name: Build sp1 runner
         working-directory: sp1
         run: make runner
