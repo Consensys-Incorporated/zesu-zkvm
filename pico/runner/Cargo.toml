@@ -1,0 +1,18 @@
+[package]
+name = "zesu-pico-runner"
+version = "0.1.0"
+edition = "2021"
+description = "Host runner for the zesu-pico zkVM guest"
+
+[[bin]]
+name = "zesu-pico-runner"
+path = "src/main.rs"
+
+[workspace]
+
+[dependencies]
+# Pinned to the v2.1.2 release (bfa8f12). Pico builds with the nightly named in
+# rust-toolchain; cargo fetches the git checkout itself.
+pico-vm = { git = "https://github.com/brevis-network/pico", rev = "bfa8f12e6e1a19a56f61dea8d78a5dd3a28de255", features = ["mmap-memory"] }
+eyre = "0.6"
+elf = "0.7"

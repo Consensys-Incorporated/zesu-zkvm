@@ -194,3 +194,63 @@ jobs:
       - name: Run vectors
         working-directory: zesu-zkvm/zisk
         run: make test ZESU_OBJ=/tmp/zesu-obj/zesu.zisk.o
+
+  pico:
+    name: Pico (build, test & vectors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout zesu-zkvm
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: "0.16.0"
+
+      # The runner links Pico's own crates, which pin this nightly (see pico/runner/rust-toolchain).
+      - name: Install Rust nightly for the Pico runner
+        run: rustup toolchain install nightly-2025-08-04 --profile minimal
+
+      - name: Cache cargo and runner build
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            pico/runner/target
+          key: pico-runner-${{ runner.os }}-${{ hashFiles('pico/runner/Cargo.lock', 'pico/runner/Cargo.toml', 'pico/runner/rust-toolchain') }}
+
+      # zesu is fetched by `zig build` itself, at the commit pinned in pico/build.zig.zon, and
+      # built here for Pico's own target. No zesu checkout or prebuilt object is involved.
+      - name: Lint (pico)
+        working-directory: pico
+        run: zig fmt --check src/ build.zig
+
+      - name: Lint (shared)
+        working-directory: shared
+        run: zig fmt --check src/ build.zig
+
+      - name: Build pico (ReleaseFast)
+        working-directory: pico
+        run: zig build -Doptimize=ReleaseFast
+
+      - name: Build pico runner
+        working-directory: pico
+        run: make runner
+
+      # Native unit tests of the shared crypto: EIP vectors, KZG vectors, ECDSA differential tests.
+      - name: Unit tests (shared)
+        working-directory: shared
+        run: zig build test -Doptimize=ReleaseFast
+
+      # Execute every vector on Pico's VM and compare the output with its expected.hex.
+      - name: Vectors (pico)
+        working-directory: pico
+        run: make test
+
+      # Run the crypto modules on the VM: precompile-backed path vs software path + known answers.
+      - name: Crypto self-test on the VM (pico)
+        working-directory: pico
+        run: make selftest

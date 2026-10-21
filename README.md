@@ -11,6 +11,10 @@ zkVM target.
 | [`zisk/`](zisk/) | [Zisk 0.17.0](https://github.com/0xPolygonHermez/zisk) | Working |
 | [`openvm/`](openvm/) | [openvm](https://github.com/openvm-org/openvm) | Working (emulation only, no proofs) |
 | [`linea/`](linea/) | [Linea zkVM](https://github.com/Consensys/linea-zkvm) | Working |
+| [`pico/`](pico/) | [Pico](https://github.com/brevis-network/pico) | Execution works; see its README |
+
+The zkVM-independent crypto (pure-Zig primitives, curve code generic over a field backend, and
+their unit tests) lives in [`shared/`](shared/) and is used by the targets above.
 
 ## Building
 

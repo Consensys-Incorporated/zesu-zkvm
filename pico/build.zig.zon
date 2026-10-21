@@ -1,0 +1,18 @@
+.{
+    .name = .zesu_pico,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.16.0",
+    .fingerprint = 0x9847e97aa27c6081,
+    .dependencies = .{
+        // zesu, pinned to a commit that exports `addGuestObject`. Its build.zig is imported to
+        // build the guest object with Pico's own ISA target. To bump the pin:
+        //   zig fetch --save=zesu "git+https://github.com/Consensys-Incorporated/zesu#<commit>"
+        // To build against a local zesu source tree instead (no edit to this file):
+        //   ZESU_SOURCE=../../zesu make     (or: zig build --fork=../../zesu)
+        .zesu = .{
+            .url = "git+https://github.com/Consensys-Incorporated/zesu#a72dec70a80f3d1d15f8e48f1582f7000f38a48c",
+            .hash = "zesu-0.1.0-UtqpABAjRgBjvgOXfBNrsZEs62jtOSKbG09CoLEPpYDP",
+        },
+    },
+    .paths = .{"."},
+}

@@ -24,6 +24,15 @@ openvm/runner/target/
 openvm/.zig-cache/
 openvm/zig-out
 
+# omit pico runner build tree
+pico/runner/target/
+pico/.zig-cache/
+pico/zig-out
+pico/zig-pkg
+
+# shared native-test build tree (zig-pkg holds the fetched zesu dependency)
+shared/zig-pkg
+
 # OS
 .DS_Store
 Thumbs.db

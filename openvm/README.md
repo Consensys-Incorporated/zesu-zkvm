@@ -14,7 +14,8 @@ zesu.o          — EVM + stateless execution logic (from zesu/core)
                   symbols (IO, crypto, heap, runtime) as extern refs.
 
 openvm-host.o   — All platform symbols:
-                    openvm_host.zig  pure-Zig / std.crypto accelerators,
+                    openvm_host.zig  pure-Zig / std.crypto accelerators (ripemd160, blake2f,
+                                     modexp come from ../shared),
                                      hint-stream IO, bump heap vars + init
                     startup.S        _start, TERMINATE exit (see below)
 ```

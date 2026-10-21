@@ -28,12 +28,19 @@ pub fn build(b: *std.Build) void {
     // ── accel_impl: OpenVM native accelerator implementations ─────────────────
     // keccak256/sha256: native XORIN+KECCAKF / SHA256 compress opcodes
     // ecrecover/secp256k1_verify: native modular arithmetic + ECC opcodes
-    // ripemd160/modexp/bn254/bls12/blake2f: pure-Zig implementations
+    // ripemd160/modexp/blake2f: pure-Zig implementations from ../shared (zkvm_crypto)
+    // bn254/bls12: OpenVM's own implementations in src/zkvm_accel
+    const crypto_mod = b.createModule(.{
+        .root_source_file = b.path("../shared/src/zkvm_crypto.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
     const accel_impl_mod = b.createModule(.{
         .root_source_file = b.path("src/zkvm_accel/openvm_accel.zig"),
         .target = target,
         .optimize = optimize,
     });
+    accel_impl_mod.addImport("zkvm_crypto", crypto_mod);
 
     // ── OpenVM host object ────────────────────────────────────────────────────
     // Satisfies all extern refs from zesu.o:
