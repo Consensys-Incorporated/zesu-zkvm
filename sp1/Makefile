@@ -3,6 +3,7 @@
 # Prerequisites:
 #   - Zig (see minimum_zig_version in build.zig.zon)
 #   - Rust stable (for the runner; sp1-sdk needs 1.88+)
+#   - protoc (the runner's SP1 dependencies compile .proto files at build time)
 #   - curl and shasum (to fetch the SP1 zkvm-standards SDK)
 #   - Network access to fetch the zesu commit pinned in build.zig.zon, or a local zesu
 #     checkout passed as ZESU_SOURCE=<dir>.
