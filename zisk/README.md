@@ -10,7 +10,7 @@ The guest ELF is assembled from two relocatable objects:
 
 ```
 zesu.o          — EVM + stateless execution logic (from zesu/src/zkvm)
-                  Compiled for rv64im freestanding; leaves all platform
+                  Compiled for ZisK's rv64im+Zbb+Zbs target; leaves all platform
                   symbols (IO, crypto, heap, runtime) as extern refs.
 
 zisk-wrapped.o  — All platform symbols, merged in a partial-link step:
@@ -59,9 +59,8 @@ zisk/
   lib/
     libziskos_staticlib.a — NOT committed; build with `make lib/libziskos_staticlib.a`
   build.zig              — Zig build script
-  build.zig.zon          — package manifest (no dependencies; zesu.o is either
-                           passed in via -Dzesu_obj or built from a sibling
-                           ../../zesu checkout)
+  build.zig.zon          — package manifest; pins the zesu commit built into
+                           the guest (zesu's addGuestObject)
   zisk.ld                — linker script (Zisk memory map)
   Makefile               — builds libziskos_staticlib.a then the Zig guest ELF
 ```
@@ -73,7 +72,7 @@ zisk/
 | Zig | 0.16.0 | see `minimum_zig_version` in `build.zig.zon`; CI pins exactly 0.16.0 |
 | Rust + cargo-zisk | 1.3.2-alpha | ZisK custom Rust toolchain |
 | Zisk source | v1.3.2-alpha | for building `libziskos_staticlib.a` |
-| zesu.rv64im.o | — | pre-built object passed via `-Dzesu_obj`, or built from a sibling `../../zesu` checkout if omitted |
+| zesu | pinned in `build.zig.zon` | fetched by `zig build`; `ZESU_SOURCE=<dir>` (`--fork`) builds a local checkout, `-Dzesu_obj` links a pre-built object |
 
 ## Building `lib/libziskos_staticlib.a`
 
@@ -123,19 +122,21 @@ cp $ZISK_DIR/target/riscv64ima-zisk-zkvm-elf/release/libziskos_staticlib.a lib/
 make                              # builds lib/libziskos_staticlib.a then the debug ELF
 zig build -Doptimize=ReleaseFast  # release build only (lib/ must already exist)
 
-# Against a pre-built zesu.rv64im.o (CI / release default) instead of a
-# sibling ../../zesu checkout:
-zig build -Doptimize=ReleaseFast -Dzesu_obj=/path/to/zesu.rv64im.o
+# Against a local zesu checkout instead of the build.zig.zon pin:
+zig build -Doptimize=ReleaseFast --fork=../../zesu     # or: ZESU_SOURCE=../../zesu make
+
+# Against a pre-built zesu object:
+zig build -Doptimize=ReleaseFast -Dzesu_obj=/path/to/zesu-zisk.o
 ```
 
 Output: `zig-out/bin/zesu-zisk`
 
 The build executes three steps:
 
-1. **Compile `zesu.o`** — either supplied directly via `-Dzesu_obj`, or built
-   from source by invoking `zig build rv64im-object` against a sibling
-   `../../zesu` checkout. All `zkvm_*`, IO, and heap symbols are unresolved
-   extern refs.
+1. **Compile `zesu.o`** — zesu's `addGuestObject`, called with this build's
+   ZisK target (and `has_dma`), from the zesu pinned in `build.zig.zon`; or
+   supplied directly via `-Dzesu_obj`. All `zkvm_*`, IO, and heap symbols are
+   unresolved extern refs.
 2. **Partial link** — `zig ld.lld -r --whole-archive zisk-host.o
    libziskos_staticlib.a --no-whole-archive` produces `zisk-wrapped.o`: the
    three host runtime symbols plus every accelerator/IO/entrypoint symbol
@@ -159,7 +160,8 @@ make test           # build ReleaseFast + run every ../vectors/*.bin through
 make bless          # regenerate the *.expected.hex files from current output
 ```
 
-Pass a pre-built zesu object with `ZESU_OBJ=/path/to/zesu.rv64im.o` (used by CI).
+Build against a local zesu checkout with `ZESU_SOURCE=../../zesu`, or link a
+pre-built zesu object with `ZESU_OBJ=/path/to/zesu-zisk.o`.
 
 ## Entry-point chain
 

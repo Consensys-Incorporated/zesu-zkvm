@@ -19,6 +19,7 @@ openvm/lib/
 # Per-zkVM Zig build artifacts
 zisk/zig-out/
 zisk/.zig-cache/
+zisk/zig-pkg
 
 # omit openvm runner and pairing-library build trees
 openvm/runner/target/

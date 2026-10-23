@@ -9,8 +9,10 @@ on:
 env:
   ZISK_VERSION: "1.3.2-alpha"
   ZISK_TARGET: riscv64ima-zisk-zkvm-elf
-  # zesu revision the guest object is built from. Any commit-ish works; prefer a
-  # full SHA so a CI result stays reproducible.
+  # zesu revision the openvm and linea guest objects are built from. Any
+  # commit-ish works; prefer a full SHA so a CI result stays reproducible. The
+  # zisk and pico guests build zesu themselves, from the pin in their own
+  # build.zig.zon.
   #
   # Built from source rather than downloaded from a GitHub release: release
   # assets exist only for releases, and zesu publishes them by manual dispatch,
@@ -100,15 +102,15 @@ jobs:
 
       - name: Build zisk (Debug)
         working-directory: zesu-zkvm/zisk
-        run: zig build -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o
+        run: zig build
 
       - name: Build zisk (ReleaseFast)
         working-directory: zesu-zkvm/zisk
-        run: zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o
+        run: zig build -Doptimize=ReleaseFast
 
       - name: Test (zisk)
         working-directory: zesu-zkvm/zisk
-        run: zig build test --summary all -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o
+        run: zig build test --summary all
 
       - name: Lint (openvm)
         working-directory: zesu-zkvm/openvm
@@ -189,23 +191,11 @@ jobs:
         working-directory: zesu-zkvm/zisk
         run: make lib/libziskos_staticlib.a ZISK_DIR=$GITHUB_WORKSPACE/zisk
 
-      - name: Checkout zesu
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: Consensys-Incorporated/zesu
-          ref: ${{ env.ZESU_REF }}
-          path: zesu
-
-      - name: Build zesu object
-        working-directory: zesu
-        run: |
-          zig build zisk-object -Doptimize=ReleaseFast
-          mkdir -p /tmp/zesu-obj
-          cp zig-out/lib/zesu-zisk.o /tmp/zesu-obj/zesu.zisk.o
-
+      # zesu is fetched by `zig build` itself, at the commit pinned in zisk/build.zig.zon, and
+      # built here for ZisK's own target.
       - name: Run vectors
         working-directory: zesu-zkvm/zisk
-        run: make test ZESU_OBJ=/tmp/zesu-obj/zesu.zisk.o
+        run: make test
 
   openvm:
     name: OpenVM (build & vectors)
