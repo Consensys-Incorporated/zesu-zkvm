@@ -108,6 +108,10 @@ jobs:
         working-directory: zesu-zkvm/zisk
         run: zig build -Doptimize=ReleaseFast
 
+      - name: Build zisk (ReleaseFast, rv64im baseline)
+        working-directory: zesu-zkvm/zisk
+        run: zig build -Doptimize=ReleaseFast -Disa=rv64im
+
       - name: Test (zisk)
         working-directory: zesu-zkvm/zisk
         run: zig build test --summary all
