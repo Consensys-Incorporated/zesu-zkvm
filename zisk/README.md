@@ -10,7 +10,7 @@ The guest ELF is assembled from two relocatable objects:
 
 ```
 zesu.o          — EVM + stateless execution logic (from zesu/src/zkvm)
-                  Compiled for ZisK's rv64im+Zbb+Zbs target; leaves all platform
+                  Compiled for rv64im+Zbb+Zbs (-Disa=rv64im: plain rv64im); leaves all platform
                   symbols (IO, crypto, heap, runtime) as extern refs.
 
 zisk-wrapped.o  — All platform symbols, merged in a partial-link step:
@@ -127,6 +127,9 @@ zig build -Doptimize=ReleaseFast --fork=../../zesu     # or: ZESU_SOURCE=../../z
 
 # Against a pre-built zesu object:
 zig build -Doptimize=ReleaseFast -Dzesu_obj=/path/to/zesu-zisk.o
+
+# For the rv64im baseline (no Zbb/Zbs, no DMA) instead of the ZisK target:
+zig build -Doptimize=ReleaseFast -Disa=rv64im          # or: make ISA=rv64im
 ```
 
 Output: `zig-out/bin/zesu-zisk`

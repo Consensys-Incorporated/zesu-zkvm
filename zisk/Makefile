@@ -17,6 +17,7 @@
 #
 #   ZESU_SOURCE=../../zesu make ...  use a local zesu checkout instead of the pinned commit
 #   ZESU_OBJ=<file> make ...         link a pre-built zesu object instead of building zesu
+#   ISA=rv64im make ...              build for the rv64im baseline (no Zbb/Zbs, no DMA)
 
 ZISK_DIR  ?= ../../zisk
 ZISK_PKG   = ziskos-staticlib
@@ -36,13 +37,14 @@ ZIG       ?= zig
 ZISKEMU   ?= ziskemu
 ZESU_OBJ  ?=
 ZESU_SOURCE ?=
+ISA       ?=
 
 # Bytes of SszStatelessValidationResult to compare: the zkevm@v0.8.0 flat layout
 # is root(32) + valid(1) + chain_id(8) + schema_id(2). Must agree with
 # SSZ_OUTPUT_LEN in openvm/runner/src/main.rs.
 SSZ_OUTPUT_LEN ?= 43
 
-ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ)) $(if $(ZESU_SOURCE),--fork=$(ZESU_SOURCE))
+ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ)) $(if $(ZESU_SOURCE),--fork=$(ZESU_SOURCE)) $(if $(ISA),-Disa=$(ISA))
 
 .PHONY: all run test bless clean clean-lib
 
