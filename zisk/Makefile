@@ -4,6 +4,9 @@
 #   - Rust stable toolchain (rustup default stable)
 #   - Zisk source checkout (default: ../../zisk, override via ZISK_DIR)
 #   - Zig (see minimum_zig_version in build.zig.zon)
+#   - Network access to fetch the zesu commit pinned in build.zig.zon, or a local zesu
+#     checkout passed as ZESU_SOURCE=<dir>. zesu is built inside this build, for ZisK's own
+#     ISA target (see build.zig).
 #
 # Usage:
 #   make lib/libziskos_staticlib.a — build the Zisk OS static library (ZisK 1.2.0-alpha)
@@ -11,6 +14,9 @@
 #   make run INPUT=<file>          — build and run under ziskemu
 #   make clean                     — remove build artifacts (preserves lib/libziskos_staticlib.a)
 #   make clean-lib                 — also remove lib/libziskos_staticlib.a (forces a rebuild)
+#
+#   ZESU_SOURCE=../../zesu make ...  use a local zesu checkout instead of the pinned commit
+#   ZESU_OBJ=<file> make ...         link a pre-built zesu object instead of building zesu
 
 ZISK_DIR  ?= ../../zisk
 ZISK_PKG   = ziskos-staticlib
@@ -29,13 +35,14 @@ CARGO_OUT = $(ZISK_DIR)/target/$(ZISK_TARGET)/release/lib$(ZISK_LIB).a
 ZIG       ?= zig
 ZISKEMU   ?= ziskemu
 ZESU_OBJ  ?=
+ZESU_SOURCE ?=
 
 # Bytes of SszStatelessValidationResult to compare: the zkevm@v0.8.0 flat layout
 # is root(32) + valid(1) + chain_id(8) + schema_id(2). Must agree with
 # SSZ_OUTPUT_LEN in openvm/runner/src/main.rs.
 SSZ_OUTPUT_LEN ?= 43
 
-ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ))
+ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ)) $(if $(ZESU_SOURCE),--fork=$(ZESU_SOURCE))
 
 .PHONY: all run test bless clean clean-lib
 

@@ -1,14 +1,16 @@
 name: Release
 
-# Builds ELF artifacts for each supported zkVM target against published zesu
-# objects and creates a draft GitHub Release.
+# Builds ELF artifacts for each supported zkVM target against zesu and creates
+# a draft GitHub Release. openvm and linea link published zesu objects; zisk
+# builds zesu itself, for its own target, via zesu's addGuestObject.
 #
 # Trigger manually: Actions → "Release" → Run workflow
 #   release_tag  — tag to create for this repo (e.g. bal-devnet-3)
-#   zesu_version — zesu release tag to pull the zesu objects from (empty = latest)
+#   zesu_version — zesu release tag to build against (empty = latest release for
+#                  openvm/linea, the zisk/build.zig.zon pin for zisk)
 #
 # Targets built:
-#   zisk    — ZisK v1.2.0-alpha; links zesu.zisk.o (rv64im+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
+#   zisk    — ZisK v1.2.0-alpha; links zesu (built for rv64im+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
 #   openvm  — OpenVM rv64im; links zesu.rv64im.o + openvm-host.o
 #   linea   — Linea rv64im; links zesu.rv64im.o + linea-host.o; stripped ELF
 #
@@ -40,7 +42,7 @@ on:
         required: true
         type: string
       zesu_version:
-        description: "zesu release tag to build against (e.g. bal-devnet-3); leave empty to use the latest published release. Must be a release tag — branch names will 404."
+        description: "zesu release tag to build against (e.g. bal-devnet-3); leave empty to use the latest published release (zisk: the commit pinned in zisk/build.zig.zon). Must be a release tag — branch names will 404."
         required: false
         type: string
         default: ""
@@ -114,19 +116,21 @@ jobs:
         working-directory: zisk
         run: make lib/libziskos_staticlib.a ZISK_DIR=$GITHUB_WORKSPACE/upstream-zisk
 
-      - name: Download zesu object
-        run: |
-          mkdir -p /tmp/zesu-obj
-          if [ -n "${{ inputs.zesu_version }}" ]; then
-            URL="https://github.com/Consensys-Incorporated/zesu/releases/download/${{ inputs.zesu_version }}/zesu.zisk.o"
-          else
-            URL="https://github.com/Consensys-Incorporated/zesu/releases/latest/download/zesu.zisk.o"
-          fi
-          curl -fsSL "$URL" -o /tmp/zesu-obj/zesu.zisk.o
+      # zesu_version overrides the zisk/build.zig.zon pin. The tag must export
+      # addGuestObject (zesu #201 or later).
+      - name: Checkout zesu
+        if: inputs.zesu_version != ''
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Consensys-Incorporated/zesu
+          ref: ${{ inputs.zesu_version }}
+          path: zesu
 
       - name: Build Zesu ZisK ELF
         working-directory: zisk
-        run: zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu-obj/zesu.zisk.o
+        env:
+          ZESU_VERSION: ${{ inputs.zesu_version }}
+        run: zig build -Doptimize=ReleaseFast ${ZESU_VERSION:+--fork=$GITHUB_WORKSPACE/zesu}
 
       - name: Free up disk space for ere-server-zisk image
         run: |
@@ -284,6 +288,6 @@ jobs:
           gh release create "${{ inputs.release_tag }}" \
             --repo "$GITHUB_REPOSITORY" \
             --title "${{ inputs.release_tag }}" \
-            --notes "Built against zesu ${{ inputs.zesu_version || 'latest' }}" \
+            --notes "Built against zesu ${{ inputs.zesu_version || 'latest (zisk: the zisk/build.zig.zon pin)' }}" \
             --draft \
             artifacts/*
