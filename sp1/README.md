@@ -108,7 +108,8 @@ make test                         # execute all vectors
 make run INPUT=../vectors/sepolia_amsterdam_11856500.bin
 ```
 
-Set `RUST_LOG=info` to see the guest's `zkvm_log` output.
+The guest's `zkvm_log` output is printed to stderr by SP1's executor, one line per write and
+prefixed `stdout:`; no log configuration is needed.
 
 The SDK version and its SHA-256 are pinned in the Makefile (`SP1_VERSION`, `SP1_SDK_SHA256`); to
 move to a newer SP1, update both after checking the release's `zkevm-sdk-v<version>.tar.gz`.
