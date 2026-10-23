@@ -362,9 +362,10 @@ jobs:
         run: zig build -Doptimize=ReleaseFast
 
       # sp1-sdk's dependency crates compile .proto files at build time (prost-build), which
-      # needs protoc; the runner image does not ship it.
+      # needs protoc; the runner image does not ship it. The well-known types the protos
+      # import (google/protobuf/empty.proto) are in libprotobuf-dev, not protobuf-compiler.
       - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends protobuf-compiler
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev
 
       - name: Build sp1 runner
         working-directory: sp1
