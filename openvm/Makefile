@@ -3,7 +3,7 @@
 # Prerequisites:
 #   - Zig (see minimum_zig_version in build.zig.zon)
 #   - Rust 1.91.1 stable (for the runner)
-#   - openvm checkout (v2.x.0-preview.2) at ../../../openvm relative to this directory
+#   - OpenVM is fetched by cargo, pinned to the revision eth-act/ere executes with
 #
 # Usage:
 #   make runner               — build the Rust host runner
@@ -19,6 +19,10 @@ ZIG       ?= zig
 RUNNER    = runner/target/release/zesu-openvm-runner
 ELF       = zig-out/bin/zesu-openvm
 
+# Prebuilt zesu.rv64im.o (zig build rv64im-object in zesu); omit to build from ../../zesu.
+ZESU_OBJ  ?=
+ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ))
+
 # Bytes of SszStatelessValidationResult to compare: the zkevm@v0.8.0 flat layout
 # is root(32) + valid(1) + chain_id(8) + schema_id(2). Must agree with
 # SSZ_OUTPUT_LEN in openvm/runner/src/main.rs.
@@ -27,7 +31,7 @@ SSZ_OUTPUT_LEN ?= 43
 .PHONY: all runner run test bless clean clean-runner
 
 all: runner
-	$(ZIG) build
+	$(ZIG) build $(ZIG_FLAGS)
 
 runner: $(RUNNER)
 
@@ -41,7 +45,7 @@ run: all
 	$(RUNNER) -e $(ELF) -i $(INPUT)
 
 test: runner
-	$(ZIG) build -Doptimize=ReleaseFast
+	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
 	@fail=0; \
 	for bin in ../vectors/*.bin; do \
 	    name=$$(basename $$bin .bin); \
@@ -70,7 +74,7 @@ test: runner
 	exit $$fail
 
 bless: runner
-	$(ZIG) build -Doptimize=ReleaseFast
+	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
 	@for bin in ../vectors/*.bin; do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \

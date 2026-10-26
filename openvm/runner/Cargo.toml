@@ -8,14 +8,11 @@ description = "Host runner for the zesu-openvm zkVM guest"
 name = "zesu-openvm-runner"
 path = "src/main.rs"
 
+# Pinned to what eth-act/ere v0.19.5 executes guests with, so a pass here means
+# a pass on the dashboard: openvm v2.1.0-preview plus han0110's patch branch.
+# Cargo.lock is seeded from ere's, which fixes the revisions.
 [dependencies]
-openvm-sdk              = { path = "../../../openvm/crates/sdk" }
-openvm-sdk-config       = { path = "../../../openvm/crates/sdk-config" }
-openvm-algebra-circuit  = { path = "../../../openvm/extensions/algebra/circuit" }
-openvm-ecc-circuit      = { path = "../../../openvm/extensions/ecc/circuit" }
-openvm-pairing-circuit  = { path = "../../../openvm/extensions/pairing/circuit" }
+openvm-sdk        = { git = "https://github.com/han0110/openvm.git", branch = "patch/v2.1.0-preview" }
+openvm-sdk-config = { git = "https://github.com/han0110/openvm.git", branch = "patch/v2.1.0-preview" }
+openvm-transpiler = { git = "https://github.com/han0110/openvm.git", branch = "patch/v2.1.0-preview" }
 eyre              = "0.6"
-toml              = "0.8"
-num-bigint        = "0.4"
-num-traits        = "0.2"
-

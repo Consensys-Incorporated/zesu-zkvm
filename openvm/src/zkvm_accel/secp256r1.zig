@@ -10,15 +10,15 @@
 ///   funct3=1, funct7 = curve_idx*8 + base_op
 ///     EC_ADD_NE=0, EC_DOUBLE=1, EC_SETUP=2
 ///
-/// Modulus/curve assignments (from openvm.toml order):
-///   mod_idx=0: secp256k1 p
-///   mod_idx=1: secp256k1 n
-///   mod_idx=2: BN254 p
-///   mod_idx=3: BN254 r
+/// Indices follow openvm's SdkVmConfig::standard(), the config eth-act/ere executes with:
+///   mod_idx=0: BN254 p
+///   mod_idx=1: BN254 r
+///   mod_idx=2: secp256k1 p
+///   mod_idx=3: secp256k1 n
 ///   mod_idx=4: P-256 p   ← this module
 ///   mod_idx=5: P-256 n   ← this module
-///   curve_idx=0: secp256k1
-///   curve_idx=1: BN254 G1
+///   curve_idx=0: BN254 G1
+///   curve_idx=1: secp256k1
 ///   curve_idx=2: P-256   ← this module
 ///
 /// Point format: 64 bytes = x(32 LE bytes) || y(32 LE bytes), align(8).
