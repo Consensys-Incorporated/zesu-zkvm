@@ -1,23 +1,33 @@
 const std = @import("std");
+const zesu_build = @import("zesu");
+
+const Isa = enum { zisk, rv64im };
 
 pub fn build(b: *std.Build) void {
-    // ── Zisk zkVM target: RISC-V 64-bit freestanding (rv64im + zicclsm) ──────
+    // ── Zisk zkVM target: RISC-V 64-bit freestanding ──────────────────────────
+    // zisk   (default) rv64im + Zbb + Zbs: ZisK proves Zbb/Zbs natively, and zesu's
+    //        fixed-size copies use ZisK's DMA chip.
+    // rv64im the zkvm-standards baseline (zesu's rv64im-object): no Zbb/Zbs, no DMA.
+    // Both accept misaligned scalar access. No atomics, no compressed, no float.
+    const isa = b.option(Isa, "isa", "ISA the guest (zesu and host) is built for: zisk (default) or rv64im") orelse .zisk;
+    const base_features = [_]std.Target.riscv.Feature{ .m, .zicclsm, .unaligned_scalar_mem };
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .riscv64,
         .cpu_model = .{ .explicit = &std.Target.riscv.cpu.baseline_rv64 },
-        .cpu_features_add = std.Target.riscv.featureSet(&.{ .m, .zicclsm }),
-        .cpu_features_sub = std.Target.riscv.featureSet(&.{ .a, .c, .d, .f, .zicsr, .zaamo, .zalrsc }),
+        .cpu_features_add = std.Target.riscv.featureSet(switch (isa) {
+            .zisk => &(base_features ++ [_]std.Target.riscv.Feature{ .zbb, .zbs }),
+            .rv64im => &base_features,
+        }),
+        .cpu_features_sub = std.Target.riscv.featureSet(&.{ .a, .c, .zca, .zcb, .d, .f, .zicsr, .zaamo, .zalrsc }),
         .os_tag = .freestanding,
         .abi = .none,
     });
     const optimize = b.standardOptimizeOption(.{});
 
     // ── zesu object ───────────────────────────────────────────────────────────
-    // -Dzesu_obj=/path/to/zesu.rv64im.o  use a pre-built object (CI default)
-    // (omit)                             build from source via zesu_core path dep
-    const zesu_obj_path = b.option([]const u8, "zesu_obj", "Path to pre-built zesu.rv64im.o (omit to build from source via zesu_core dep)");
-
-    // ── zesu rv64im object ────────────────────────────────────────────────────
+    // Built here, for the target above, from the zesu pinned in build.zig.zon.
+    // -Dzesu_obj links a pre-built object instead.
+    const zesu_obj_path = b.option([]const u8, "zesu_obj", "Path to a pre-built zesu object (omit to build zesu for this target from the build.zig.zon pin)");
 
     // ── zisk-host object ─────────────────────────────────────────────────────
     // Compiled separately so it can be partially linked with libziskos_staticlib.a before
@@ -65,13 +75,8 @@ pub fn build(b: *std.Build) void {
     if (zesu_obj_path) |path| {
         exe.root_module.addObjectFile(.{ .cwd_relative = path });
     } else {
-        const build_zesu = b.addSystemCommand(&.{
-            "zig",                                          "build", "rv64im-object",
-            b.fmt("-Doptimize={s}", .{@tagName(optimize)}),
-        });
-        build_zesu.setCwd(b.path("../../zesu"));
-        exe.root_module.addObjectFile(b.path("../../zesu/zig-out/lib/zesu.o"));
-        exe.step.dependOn(&build_zesu.step);
+        const zesu_dep = b.dependency("zesu", .{ .@"crypto-backend" = .@"extern" });
+        exe.root_module.addObject(zesu_build.addGuestObject(zesu_dep.builder, target, optimize, isa == .zisk));
     }
     exe.root_module.addObjectFile(zisk_wrapped);
     exe.setLinkerScript(b.path("zisk.ld"));

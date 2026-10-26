@@ -18,8 +18,12 @@ their unit tests) lives in [`shared/`](shared/) and is used by the targets above
 
 ## Building
 
-There are two ways to supply the zesu core object, depending on whether you want
-to build against a published release or a local development checkout.
+`zisk/` and `pico/` build zesu themselves, for their own ISA target, from the commit
+pinned in their `build.zig.zon` (zesu's `addGuestObject`); `ZESU_SOURCE=../../zesu make`
+builds a local checkout instead. See their READMEs.
+
+`openvm/` and `linea/` link a zesu core object, supplied one of two ways, depending on
+whether you want to build against a published release or a local development checkout.
 
 ### Against a published zesu release (recommended)
 
@@ -36,15 +40,7 @@ curl -fsSL https://github.com/Consensys/zesu/releases/download/bal-devnet-3/zesu
   -o /tmp/zesu.rv64im.o
 
 # Build any target
-zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu.rv64im.o   # from zisk/, openvm/, or linea/
-```
-
-For the zisk target, `libziskos.a` must also be present. See [`zisk/README.md`](zisk/README.md)
-for the full build procedure, or use the Makefile which handles this automatically:
-
-```sh
-cd zisk
-make ZESU_OBJ=/tmp/zesu.rv64im.o
+zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu.rv64im.o   # from openvm/ or linea/
 ```
 
 ### Against a local zesu checkout (development)
@@ -62,7 +58,7 @@ checked out as a sibling:
 ```
 
 ```sh
-# From zisk/, openvm/, or linea/ — no -Dzesu_obj needed
+# From openvm/ or linea/ — no -Dzesu_obj needed
 zig build -Doptimize=ReleaseFast
 ```
 
