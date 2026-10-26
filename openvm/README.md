@@ -109,7 +109,7 @@ openvm/
 |---|---|---|
 | Zig | ≥ 0.16.0 | see `minimum_zig_version` in `build.zig.zon` |
 | Rust stable | ≥ 1.91 | `rustup update stable` |
-| OpenVM | [`v2.1.0-preview`](https://github.com/openvm-org/openvm/releases/tag/v2.1.0-preview) | git dep, pinned to the revision [eth-act/ere](https://github.com/eth-act/ere) v0.17.0 uses |
+| OpenVM | [`v2.1.0-preview`](https://github.com/openvm-org/openvm/releases/tag/v2.1.0-preview) | git dep, locked to the revisions [eth-act/ere](https://github.com/eth-act/ere) v0.19.5 uses |
 | zesu/core | path dep | sibling at `../../zesu/core` |
 
 ## Building the guest ELF
