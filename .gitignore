@@ -36,6 +36,12 @@ pico/zig-pkg
 # shared native-test build tree (zig-pkg holds the fetched zesu dependency)
 shared/zig-pkg
 
+# omit sp1 runner build tree and Zig caches (sp1/lib/ is ignored above)
+sp1/runner/target/
+sp1/.zig-cache/
+sp1/zig-out
+sp1/zig-pkg
+
 # OS
 .DS_Store
 Thumbs.db
