@@ -10,7 +10,7 @@ name: Release
 #                  openvm/linea, the zisk/build.zig.zon pin for zisk)
 #
 # Targets built:
-#   zisk    — ZisK v1.3.2-alpha; links zesu (build for rv64im+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
+#   zisk    — ZisK v1.3.2-alpha; links zesu (build for rv64im+Zba+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
 #   openvm  — OpenVM rv64im; links zesu.rv64im.o + openvm-host.o
 #   linea   — Linea rv64im; links zesu.rv64im.o + linea-host.o; stripped ELF
 #
