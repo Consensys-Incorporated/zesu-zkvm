@@ -1,16 +1,18 @@
 name: Release
 
 # Builds ELF artifacts for each supported zkVM target against zesu and creates
-# a draft GitHub Release. openvm and linea link published zesu objects; zisk
-# builds zesu itself, for its own target, via zesu's addGuestObject.
+# a draft GitHub Release. openvm and linea link published zesu objects; zisk and
+# sp1 build zesu itself, for their own target, via zesu's addGuestObject.
 #
 # Trigger manually: Actions → "Release" → Run workflow
 #   release_tag  — tag to create for this repo (e.g. bal-devnet-3)
 #   zesu_version — zesu release tag to build against (empty = latest release for
-#                  openvm/linea, the zisk/build.zig.zon pin for zisk)
+#                  openvm/linea, the zisk/build.zig.zon and sp1/build.zig.zon pins
+#                  for zisk and sp1)
 #
 # Targets built:
 #   zisk    — ZisK v1.3.2-alpha; links zesu (build for rv64im+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
+#   sp1     — SP1 v6.9.0; links zesu (built for rv64im, strict alignment) + sp1-host.o + SP1's libzkevm.a
 #   openvm  — OpenVM rv64im; links zesu.rv64im.o + openvm-host.o
 #   linea   — Linea rv64im; links zesu.rv64im.o + linea-host.o; stripped ELF
 #
@@ -20,19 +22,16 @@ name: Release
 # crate — so their version segment is the placeholder "ALPHA" until a real
 # upstream version exists.
 #
-# Verification keys (.vk): generated only for ZisK, via ere-server-zisk's
-# `keygen` (a zkVM-specific commitment to the compiled ELF — see ere at
-# https://github.com/eth-act/ere). Not generated for:
-#   - OpenVM: its real proving machine is RV32IM, but zesu-zkvm's OpenVM guest
-#     is built as riscv64-freestanding-none — ere-server-openvm rejects the ELF
-#     outright ("not a 32-bit ELF"). This is a target-architecture mismatch,
-#     not a CI gap; fixing it is a separate, larger task.
-#   - Linea: no ere support exists for it at all — Linea's zkc/go-corset
-#     arithmetization checker has no per-guest "verification key" concept the
-#     way SP1/ZisK/OpenVM do.
-# All three ELFs are still signed below regardless — signing is a generic,
-# zkVM-agnostic operation (minisign over whatever bytes we produce) and
-# doesn't depend on a zkVM having a VK concept at all.
+# Verification keys (.vk): generated for ZisK, SP1 and OpenVM, via the
+# ere-server-<zkvm> image's `keygen` (a zkVM-specific commitment to the compiled
+# ELF — see ere at https://github.com/eth-act/ere). The .vk is written next to
+# the ELF and released under the same name with a .vk extension. Not generated
+# for Linea: there is no ere support for it at all — Linea's zkc/go-corset
+# arithmetization checker has no per-guest "verification key" concept the way
+# SP1/ZisK/OpenVM do.
+# All ELFs are signed below regardless — signing is a generic, zkVM-agnostic
+# operation (minisign over whatever bytes we produce) and doesn't depend on a
+# zkVM having a VK concept at all.
 
 on:
   workflow_dispatch:
@@ -42,20 +41,22 @@ on:
         required: true
         type: string
       zesu_version:
-        description: "zesu release tag to build against (e.g. bal-devnet-3); leave empty to use the latest published release (zisk: the commit pinned in zisk/build.zig.zon). Must be a release tag — branch names will 404."
+        description: "zesu release tag to build against (e.g. bal-devnet-3); leave empty to use the latest published release (zisk, sp1: the commit pinned in their build.zig.zon). Must be a release tag — branch names will 404."
         required: false
         type: string
         default: ""
 
 env:
   ZISK_VERSION: "1.3.2-alpha"
+  SP1_VERSION: "6.9.0"
   OPENVM_VERSION: "ALPHA"
   LINEA_VERSION: "ALPHA"
   # ere (https://github.com/eth-act/ere) revision whose ere-server-* images we
   # pull for VK generation. Keep in sync with the rev ere-guests pins for
   # ere-platform-core (see its Cargo.lock) — bump when they bump. keygen
-  # transpiles the ELF with ere's own zisk, so ere's ziskos pin must match
-  # ZISK_VERSION too. 0.19.5: ziskos 1.3.2-alpha. NOTE: ere-guests main may still
+  # transpiles the ELF with ere's own zkVM, so ere's pins must match
+  # ZISK_VERSION, SP1_VERSION and openvm/runner's OpenVM revision too.
+  # 0.19.5: ziskos 1.3.2-alpha, SP1 6.9.0, OpenVM v2.1.0-preview. NOTE: ere-guests main may still
   # pin an older ere, so this may be ahead of the consumer.
   # Note the ghcr tag has no "v" prefix, unlike ere's git tag (v0.19.5).
   ERE_TAG: "0.19.5"
@@ -160,9 +161,68 @@ jobs:
             zisk/zig-out/bin/zesu-zisk.vk
           if-no-files-found: error
 
-  # No VK step here: ere-server-openvm requires a 32-bit ELF and rejects ours
-  # outright ("not a 32-bit ELF") since this target builds riscv64-freestanding-none
-  # — see the naming-convention comment at the top of this file.
+  compile-sp1:
+    name: Compile stateless-validator-zesu-sp1
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout zesu-zkvm
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: "0.16.0"
+
+      # SP1's zkvm-standards SDK (libzkevm.a, zkvm.ld), pinned by version and SHA-256.
+      - name: Fetch SP1 SDK
+        working-directory: sp1
+        run: make sdk
+
+      # zesu_version overrides the sp1/build.zig.zon pin. The tag must export
+      # addGuestObject (zesu #201 or later).
+      - name: Checkout zesu
+        if: inputs.zesu_version != ''
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Consensys-Incorporated/zesu
+          ref: ${{ inputs.zesu_version }}
+          path: zesu
+
+      - name: Build Zesu SP1 ELF
+        working-directory: sp1
+        env:
+          ZESU_VERSION: ${{ inputs.zesu_version }}
+        run: zig build -Doptimize=ReleaseFast ${ZESU_VERSION:+--fork=$GITHUB_WORKSPACE/zesu}
+
+      - name: Free up disk space for ere-server-sp1 image
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet           # remove dotnet
+          sudo rm -rf /usr/local/lib/android       # remove android
+          sudo rm -rf /opt/ghc /usr/local/.ghcup   # remove haskell
+          sudo rm -rf /opt/hostedtoolcache         # remove codeql
+          df -h /
+
+      - name: Generate program VK
+        run: |
+          docker pull "ghcr.io/eth-act/ere/ere-server-sp1:${{ env.ERE_TAG }}"
+          docker run --rm \
+            -v "${{ github.workspace }}/sp1/zig-out/bin:/output" \
+            "ghcr.io/eth-act/ere/ere-server-sp1:${{ env.ERE_TAG }}" \
+            --elf-path /output/zesu-sp1 \
+            keygen \
+            --program-vk-path /output/zesu-sp1.vk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stateless-validator-zesu-sp1-${{ env.SP1_VERSION }}
+          path: |
+            sp1/zig-out/bin/zesu-sp1
+            sp1/zig-out/bin/zesu-sp1.vk
+          if-no-files-found: error
+
   compile-openvm:
     name: Compile stateless-validator-zesu-openvm
     runs-on: ubuntu-latest
@@ -199,16 +259,37 @@ jobs:
         working-directory: openvm
         run: zig build -Doptimize=ReleaseFast -Dzesu_obj=/tmp/zesu-obj/zesu.rv64im.o
 
+      - name: Free up disk space for ere-server-openvm image
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet           # remove dotnet
+          sudo rm -rf /usr/local/lib/android       # remove android
+          sudo rm -rf /opt/ghc /usr/local/.ghcup   # remove haskell
+          sudo rm -rf /opt/hostedtoolcache         # remove codeql
+          df -h /
+
+      - name: Generate program VK
+        run: |
+          docker pull "ghcr.io/eth-act/ere/ere-server-openvm:${{ env.ERE_TAG }}"
+          docker run --rm \
+            -v "${{ github.workspace }}/openvm/zig-out/bin:/output" \
+            "ghcr.io/eth-act/ere/ere-server-openvm:${{ env.ERE_TAG }}" \
+            --elf-path /output/zesu-openvm \
+            keygen \
+            --program-vk-path /output/zesu-openvm.vk
+
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}
-          path: openvm/zig-out/bin/zesu-openvm
+          path: |
+            openvm/zig-out/bin/zesu-openvm
+            openvm/zig-out/bin/zesu-openvm.vk
           if-no-files-found: error
 
   # No VK step here: Linea isn't part of the ere ecosystem, and its zkc/go-corset
   # arithmetization checker has no per-guest "verification key" concept — see the
-  # naming-convention comment at the top of this file.
+  # VK comment at the top of this file.
   compile-linea:
     name: Compile stateless-validator-zesu-linea
     runs-on: ubuntu-latest
@@ -245,7 +326,7 @@ jobs:
 
   release:
     name: Publish draft GitHub Release
-    needs: [compile-zisk, compile-openvm, compile-linea]
+    needs: [compile-zisk, compile-sp1, compile-openvm, compile-linea]
     runs-on: ubuntu-latest
 
     steps:
@@ -259,7 +340,10 @@ jobs:
         run: |
           mv artifacts/zesu-zisk      "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.elf"
           mv artifacts/zesu-zisk.vk   "artifacts/stateless-validator-zesu-zisk-${{ env.ZISK_VERSION }}.vk"
+          mv artifacts/zesu-sp1       "artifacts/stateless-validator-zesu-sp1-${{ env.SP1_VERSION }}.elf"
+          mv artifacts/zesu-sp1.vk    "artifacts/stateless-validator-zesu-sp1-${{ env.SP1_VERSION }}.vk"
           mv artifacts/zesu-openvm    "artifacts/stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}.elf"
+          mv artifacts/zesu-openvm.vk "artifacts/stateless-validator-zesu-openvm-${{ env.OPENVM_VERSION }}.vk"
           mv artifacts/zesu-linea     "artifacts/stateless-validator-zesu-linea-${{ env.LINEA_VERSION }}.elf"
 
       - name: Install Minisign
@@ -297,6 +381,6 @@ jobs:
           gh release create "${{ inputs.release_tag }}" \
             --repo "$GITHUB_REPOSITORY" \
             --title "${{ inputs.release_tag }}" \
-            --notes "Built against zesu ${{ inputs.zesu_version || 'latest (zisk: the zisk/build.zig.zon pin)' }}" \
+            --notes "Built against zesu ${{ inputs.zesu_version || 'latest (zisk, sp1: the build.zig.zon pins)' }}" \
             --draft \
             artifacts/*
