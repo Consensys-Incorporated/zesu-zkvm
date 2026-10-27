@@ -10,7 +10,7 @@ The guest ELF is assembled from two relocatable objects:
 
 ```
 zesu.o          — EVM + stateless execution logic (from zesu/src/zkvm)
-                  Compiled for rv64im+Zbb+Zbs (-Disa=rv64im: plain rv64im); leaves all platform
+                  Compiled for rv64im+Zba+Zbb+Zbs (-Disa=rv64im: plain rv64im); leaves all platform
                   symbols (IO, crypto, heap, runtime) as extern refs.
 
 zisk-wrapped.o  — All platform symbols, merged in a partial-link step:

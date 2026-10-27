@@ -11,7 +11,7 @@ name: Release
 #                  for zisk and sp1)
 #
 # Targets built:
-#   zisk    — ZisK v1.3.2-alpha; links zesu (build for rv64im+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
+#   zisk    — ZisK v1.3.2-alpha; links zesu (build for rv64im+Zba+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
 #   sp1     — SP1 v6.9.0; links zesu (built for rv64im, strict alignment) + sp1-host.o + SP1's libzkevm.a
 #   openvm  — OpenVM rv64im; links zesu.rv64im.o + openvm-host.o
 #   linea   — Linea rv64im; links zesu.rv64im.o + linea-host.o; stripped ELF

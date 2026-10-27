@@ -5,7 +5,7 @@ const Isa = enum { zisk, rv64im };
 
 pub fn build(b: *std.Build) void {
     // ── Zisk zkVM target: RISC-V 64-bit freestanding ──────────────────────────
-    // zisk   (default) rv64im + Zbb + Zbs: ZisK proves Zbb/Zbs natively, and zesu's
+    // zisk   (default) rv64im + Zba + Zbb + Zbs: ZisK proves Zba/Zbb/Zbs natively, and zesu's
     //        fixed-size copies use ZisK's DMA chip.
     // rv64im the zkvm-standards baseline (zesu's rv64im-object): no Zbb/Zbs, no DMA.
     // Both accept misaligned scalar access. No atomics, no compressed, no float.
@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) void {
         .cpu_arch = .riscv64,
         .cpu_model = .{ .explicit = &std.Target.riscv.cpu.baseline_rv64 },
         .cpu_features_add = std.Target.riscv.featureSet(switch (isa) {
-            .zisk => &(base_features ++ [_]std.Target.riscv.Feature{ .zbb, .zbs }),
+            .zisk => &(base_features ++ [_]std.Target.riscv.Feature{ .zba, .zbb, .zbs }),
             .rv64im => &base_features,
         }),
         .cpu_features_sub = std.Target.riscv.featureSet(&.{ .a, .c, .zca, .zcb, .d, .f, .zicsr, .zaamo, .zalrsc }),
