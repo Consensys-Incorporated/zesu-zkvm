@@ -167,7 +167,7 @@ named. If a piece was in fact adapted from somewhere else, add it here.
 
 zesu is not linked from a published object. `build.zig.zon` pins a zesu commit as a Zig package
 dependency (`git+https://github.com/Consensys-Incorporated/zesu#<commit>`), and `build.zig` calls
-zesu's `addGuestObject(builder, target, optimize, has_dma)` with the same `target` it uses for the
+zesu's `addGuestObject(builder, target, optimize, features)` with the same `target` it uses for the
 Pico host object. The ISA extensions a zkVM supports are therefore decided here, in one place, and
 zesu needs no Pico-specific release artifact. (zesu's published `rv64im` object targets
 I+M+Zicclsm+unaligned access and cannot be used: Pico traps on the misaligned loads/stores it

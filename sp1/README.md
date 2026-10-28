@@ -91,7 +91,7 @@ with each build; sizes are approximate):
 
 zesu is not linked from a published object. `build.zig.zon` pins a zesu commit as a Zig package
 dependency (`git+https://github.com/Consensys-Incorporated/zesu#<commit>`), and `build.zig` calls
-zesu's `addGuestObject(builder, target, optimize, has_dma)` with SP1's own `target`. The ISA
+zesu's `addGuestObject(builder, target, optimize, features)` with SP1's own `target`. The ISA
 extensions a zkVM supports are therefore decided here, in one place.
 
 - Local zesu checkout: `ZESU_SOURCE=../../zesu make` (or `zig build --fork=../../zesu`) overrides
