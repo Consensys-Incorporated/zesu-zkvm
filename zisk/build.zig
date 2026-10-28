@@ -76,11 +76,7 @@ pub fn build(b: *std.Build) void {
         exe.root_module.addObjectFile(.{ .cwd_relative = path });
     } else {
         const zesu_dep = b.dependency("zesu", .{ .@"crypto-backend" = .@"extern" });
-        exe.root_module.addObject(zesu_build.addGuestObject(zesu_dep.builder, target, optimize, .{
-            .dma = isa == .zisk,
-            .jump_dest = isa == .zisk,
-            .arith256_mod = isa == .zisk,
-        }));
+        exe.root_module.addObject(zesu_build.addGuestObject(zesu_dep.builder, target, optimize, guestFeatures(isa == .zisk)));
     }
     exe.root_module.addObjectFile(zisk_wrapped);
     exe.setLinkerScript(b.path("zisk.ld"));
@@ -98,3 +94,14 @@ pub fn build(b: *std.Build) void {
     // Placeholder test step
     _ = b.step("test", "Run unit tests");
 }
+
+/// zesu's `addGuestObject` takes a `GuestFeatures` struct since zesu #226 and a
+/// `has_dma: bool` before it. Pick the argument for whichever zesu is being built, so one
+/// commit of this repo builds both (zesu's /benchmark builds a PR's head and its merge-base
+/// with the same zesu-zkvm checkout).
+fn guestFeatures(zisk: bool) GuestObjectArg {
+    if (GuestObjectArg == bool) return zisk;
+    return .{ .dma = zisk, .jump_dest = zisk, .arith256_mod = zisk };
+}
+
+const GuestObjectArg = @typeInfo(@TypeOf(zesu_build.addGuestObject)).@"fn".params[3].type.?;
