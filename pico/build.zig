@@ -19,9 +19,9 @@ pub fn build(b: *std.Build) void {
     // ── zesu object ───────────────────────────────────────────────────────────
     // zesu is built here, for Pico's own target, rather than linked from a published
     // object: the ISA extensions a zkVM supports are this project's concern, and zesu
-    // only exports `addGuestObject(builder, target, optimize, has_dma)`.
+    // only exports `addGuestObject(builder, target, optimize, features)`.
     const zesu_dep = b.dependency("zesu", .{ .@"crypto-backend" = .@"extern" });
-    const zesu_obj = zesu_build.addGuestObject(zesu_dep.builder, target, optimize, false);
+    const zesu_obj = zesu_build.addGuestObject(zesu_dep.builder, target, optimize, .{});
 
     const mod = struct {
         fn make(bb: *std.Build, path: []const u8, t: std.Build.ResolvedTarget, o: std.builtin.OptimizeMode) *std.Build.Module {
