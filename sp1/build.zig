@@ -18,7 +18,7 @@ pub fn build(b: *std.Build) void {
     // ── zesu object ───────────────────────────────────────────────────────────
     // Built here for SP1's own target (see build.zig.zon); zesu only exports addGuestObject.
     const zesu_dep = b.dependency("zesu", .{ .@"crypto-backend" = .@"extern" });
-    const zesu_obj = zesu_build.addGuestObject(zesu_dep.builder, target, optimize, false);
+    const zesu_obj = zesu_build.addGuestObject(zesu_dep.builder, target, optimize, .{});
 
     // ── SP1 host object ───────────────────────────────────────────────────────
     const host_obj = b.addObject(.{

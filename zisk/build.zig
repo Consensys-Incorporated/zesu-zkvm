@@ -76,7 +76,7 @@ pub fn build(b: *std.Build) void {
         exe.root_module.addObjectFile(.{ .cwd_relative = path });
     } else {
         const zesu_dep = b.dependency("zesu", .{ .@"crypto-backend" = .@"extern" });
-        exe.root_module.addObject(zesu_build.addGuestObject(zesu_dep.builder, target, optimize, isa == .zisk));
+        exe.root_module.addObject(zesu_build.addGuestObject(zesu_dep.builder, target, optimize, .{ .dma = isa == .zisk }));
     }
     exe.root_module.addObjectFile(zisk_wrapped);
     exe.setLinkerScript(b.path("zisk.ld"));
