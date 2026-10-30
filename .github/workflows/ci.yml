@@ -20,12 +20,12 @@ env:
   # without anything failing loudly. Pinning a commit makes the coupling between
   # the two repos explicit — bump this line to move.
   #
-  # zesu main at #146, the tests-zkevm@v21.0.5 input layout (no public_keys,
+  # zesu at tests@v21.0.5 (04003ae), the tests-zkevm@v21.0.5 input layout (no public_keys,
   # block_hash checked against the header). The vectors are encoded for it.
-  ZESU_REF: "3f982aabda5027b658e79c9b1cc9e3ec88705139"
-  # zesu main (#206) for the openvm vectors job, which asserts the guest built from
+  ZESU_REF: "04003ae2cca9b9bb7a44a4f146ffbc7d751d91eb"
+  # Same pin for the openvm vectors job, which asserts the guest built from
   # current zesu still reproduces the expected roots.
-  ZESU_OPENVM_REF: "2835883c929407ff7252f7f70924436833d767c7"
+  ZESU_OPENVM_REF: "04003ae2cca9b9bb7a44a4f146ffbc7d751d91eb"
 
 jobs:
   ci:
