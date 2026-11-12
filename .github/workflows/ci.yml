@@ -54,7 +54,7 @@ jobs:
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       - name: Install cargo-zisk runtime deps
-        run: sudo apt-get install -y libomp5 libopenmpi3t64
+        run: sudo apt-get update -qq && sudo apt-get install -y libomp5 libopenmpi40 clang libclang-dev
 
       - name: Install cargo-zisk
         run: |
@@ -76,6 +76,18 @@ jobs:
         with:
           path: zesu-zkvm/zisk/lib/libziskos_staticlib.a
           key: libziskos-staticlib-${{ env.ZISK_VERSION }}-${{ runner.os }}-${{ hashFiles('zesu-zkvm/zisk/Makefile') }}
+
+      - name: Setup libclang for bindgen
+        if: steps.cache-libziskos.outputs.cache-hit != 'true'
+        run: |
+          libdir=$(llvm-config --libdir 2>/dev/null || dirname "$(ls /usr/lib/llvm-*/lib/libclang.so | sort -V | tail -1)")
+          echo "LIBCLANG_PATH=$libdir" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=$libdir"
+          ls /usr/lib/llvm-*/lib/libclang*.so* || true
+          # Fails fast here, with the header search trace, if stdint.h still
+          # does not resolve for a riscv64 target.
+          printf '#include <stdint.h>\nuint8_t x;\n' |
+            clang --target=riscv64-unknown-elf -std=c11 -xc - -fsyntax-only -H
 
       - name: Build libziskos_staticlib.a
         if: steps.cache-libziskos.outputs.cache-hit != 'true'
@@ -167,7 +179,7 @@ jobs:
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       - name: Install cargo-zisk runtime deps
-        run: sudo apt-get install -y libomp5 libopenmpi3t64
+        run: sudo apt-get update -qq && sudo apt-get install -y libomp5 libopenmpi40 clang libclang-dev
 
       - name: Install cargo-zisk
         run: |
@@ -189,6 +201,18 @@ jobs:
         with:
           path: zesu-zkvm/zisk/lib/libziskos_staticlib.a
           key: libziskos-staticlib-${{ env.ZISK_VERSION }}-${{ runner.os }}-${{ hashFiles('zesu-zkvm/zisk/Makefile') }}
+
+      - name: Setup libclang for bindgen
+        if: steps.cache-libziskos.outputs.cache-hit != 'true'
+        run: |
+          libdir=$(llvm-config --libdir 2>/dev/null || dirname "$(ls /usr/lib/llvm-*/lib/libclang.so | sort -V | tail -1)")
+          echo "LIBCLANG_PATH=$libdir" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=$libdir"
+          ls /usr/lib/llvm-*/lib/libclang*.so* || true
+          # Fails fast here, with the header search trace, if stdint.h still
+          # does not resolve for a riscv64 target.
+          printf '#include <stdint.h>\nuint8_t x;\n' |
+            clang --target=riscv64-unknown-elf -std=c11 -xc - -fsyntax-only -H
 
       - name: Build libziskos_staticlib.a
         if: steps.cache-libziskos.outputs.cache-hit != 'true'
