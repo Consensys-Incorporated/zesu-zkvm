@@ -66,7 +66,10 @@ runner: $(RUNNER)
 $(RUNNER):
 	@command -v $(CARGO) >/dev/null 2>&1 || \
 	    { echo "ERROR: cargo not found. Install Rust: https://rustup.rs"; exit 1; }
-	cd runner && $(CARGO) build --release
+	@# Drop make's MAKEFLAGS: GNU make >= 4.4 appends command-line variables
+	@# after a `--` (e.g. " -- ZESU_OBJ=..."), and cargo appends its jobserver
+	@# flags after that, so tikv-jemalloc-sys's nested make sees `-j` as a target.
+	cd runner && env -u MAKEFLAGS -u MFLAGS $(CARGO) build --release
 
 run: all
 	@test -n "$(INPUT)" || { echo "ERROR: INPUT is required: make run INPUT=path/to/block.bin" >&2; exit 1; }
