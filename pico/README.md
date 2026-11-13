@@ -2,7 +2,9 @@
 
 Pico (Brevis) zkVM guest for zesu — compiles the Ethereum stateless block executor to a
 `riscv64-freestanding-none` ELF that runs inside
-[Pico](https://github.com/brevis-network/pico) (tested against v2.1.2, `bfa8f12`).
+[Pico](https://github.com/brevis-network/pico) 3.1.0, at `613d6ae` — the revision
+[eth-act/ere](https://github.com/eth-act/ere) v0.20.0 pins (`pico-prover`/`pico-sdk` in its
+`Cargo.toml`). The runner pins the same revision, so a pass here is a pass under ere.
 
 Pico's VM executes **rv64im** (ELF64, `EM_RISCV`); it has no Zbb/Zbs and no
 compressed instructions.
@@ -23,10 +25,11 @@ compressed instructions.
 
 `make test` executes each vector on Pico's VM and compares the guest's output with the expected
 output: the SSZ root of the block's new-payload request, plus `valid`, chain id and schema id.
-Both vectors match in full (`sepolia_amsterdam_11856500`: 695M cycles; `mainnet_fusaka_24758573`:
-417M cycles, which includes one KZG point evaluation). So RISC-V execution of zesu on Pico's VM
-reaches the correct result for full blocks. This target is for execution; it is not used to
-generate proofs.
+Both vectors match in full (Pico 3.1.0: `sepolia_amsterdam_11856500`: 452M cycles;
+`mainnet_fusaka_24758573`: 371M cycles, which includes one KZG point evaluation). So RISC-V
+execution of zesu on Pico's VM reaches the correct result for full blocks. The release workflow
+publishes this ELF with its VK (`ere-server-pico keygen`, a whitelist-mode VK bundle) as
+`stateless-validator-zesu-pico-3.1.0.{elf,vk}`.
 
 ### Testing the crypto
 
@@ -139,8 +142,9 @@ the OpenVM and SP1 targets use the same word.
   compare cycle counts to see whether it still pays for itself.
 - **Execute-only runs use the untraced emulator.** The runner calls `RiscvEmulator::run_fast`
   (Pico's "simple" mode) directly. Going through `RiscvProver::emulate` records every event for
-  proving and was 2-3x slower (mainnet vector 37s vs 16s, sepolia 44s vs 13s). `-p` still takes
-  the full proving path.
+  proving and was 2-3x slower (mainnet vector 37s vs 16s, sepolia 44s vs 13s). `-p` instead
+  goes through `pico-prover`'s `Prover::builder(elf).shipped_whitelist()`, the same call ere's
+  `PicoProver` makes, and proves the full chain.
 - **Program limits:** at most 2²² instructions (zesu is about 250k), and segments must start at
   `0x10000` or above.
 
@@ -201,7 +205,9 @@ make prove INPUT=../vectors/sepolia_amsterdam_11856500.bin   # also prove and ve
   instruction mix, and the top functions by cycles (each cpu event's PC attributed to the ELF's
   symbols). It is 3-4x slower than `make run` (sepolia vector: ~60s vs 13s); records are
   aggregated per chunk as they arrive.
-- **`make prove`** generates and verifies a RISCV-phase proof; no stats are printed.
+- **`make prove`** proves the full recursion chain in whitelist mode, as ere-server-pico does
+  (`pico-prover` verifies the proof before returning it); no stats are printed. It needs tens of
+  GiB of memory.
 
 The same modes are available from the build system and the runner directly:
 

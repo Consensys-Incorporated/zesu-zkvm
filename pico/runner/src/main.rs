@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs, path::PathBuf, process, time::Instant};
+use std::{collections::HashMap, env, fs, path::PathBuf, process, sync::Arc, time::Instant};
 
 use elf::{abi::STT_FUNC, endian::AnyEndian, ElfBytes};
 use eyre::{bail, Result, WrapErr};
@@ -9,10 +9,14 @@ use pico_vm::{
         program::Program,
     },
     configs::{config::StarkGenericConfig, stark_config::KoalaBearPoseidon2},
-    emulator::{opts::EmulatorOpts, riscv::riscv_emulator::RiscvEmulator, stdin::EmulatorStdinBuilder},
+    emulator::{
+        opts::EmulatorOpts,
+        riscv::{public_values::RecordFinalPvsState, riscv_emulator::RiscvEmulator},
+        stdin::EmulatorStdinBuilder,
+    },
     machine::logger::setup_logger,
-    proverchain::{InitialProverSetup, MachineProver, RiscvProver},
 };
+use pico_prover::{Prover, Stdin};
 
 type SC = KoalaBearPoseidon2;
 
@@ -23,7 +27,8 @@ const USAGE: &str = "Usage: {} -e <elf_path> -i <input_file> [-X] [-T] [-p] [-o 
   -X  print execution stats: cycles, throughput and per-syscall counts (execute-only)
   -T  trace mode (implies -X): also record Pico's prover events and append events per chip,
       the instruction mix and a per-function cycle profile. Slower and memory-hungry.
-  -p  also generate and verify a RISCV-phase proof (default: execute only)
+  -p  prove the full recursion chain in whitelist mode, as ere's ere-server-pico does; the prover
+      verifies the proof itself before returning (default: execute only)
   -o  write the guest's public values (the bytes it wrote to fd 3) here";
 
 fn main() -> Result<()> {
@@ -62,23 +67,25 @@ fn main() -> Result<()> {
     let stdin = || {
         let mut b = EmulatorStdinBuilder::<Vec<u8>, SC>::default();
         b.write_slice(&input);
-        b.finalize().0
+        b.finalize::<Program>()
     };
 
     let public_values = if prove {
-        let prover = RiscvProver::<SC, Program>::new_initial_prover(
-            (SC::new(), &elf),
-            EmulatorOpts::default(),
-            None,
-        );
+        // Same builder ere's PicoProver uses (crates/prover/pico in eth-act/ere): whitelist mode
+        // under the whitelist compiled into pico-prover.
+        let mut stdin = Stdin::new();
+        stdin.write_bytes(&input);
+        let mut prover = Prover::builder(&elf)
+            .shipped_whitelist()
+            .build()
+            .map_err(|e| eyre::eyre!("prover setup failed: {e}"))?;
         let start = Instant::now();
-        let proof = prover.prove(stdin());
-        eprintln!("prove: {:.2?}", start.elapsed());
-        if !prover.verify(&proof, prover.vk()) {
-            bail!("RISCV proof did not verify");
+        let proof = prover.prove(stdin).map_err(|e| eyre::eyre!("prove failed: {e}"))?;
+        eprintln!("prove + verify: {:.2?}", start.elapsed());
+        if !proof.binds_complete_execution() {
+            bail!("proof does not bind the complete execution");
         }
-        eprintln!("verify: ok");
-        proof.pv_stream.clone().unwrap_or_default()
+        proof.committed().as_bytes().to_vec()
     } else {
         // Execute-only: drive the emulator directly in its untraced ("simple") mode. Going through
         // `RiscvProver::emulate` instead records every event for proving, which is several times
@@ -86,6 +93,7 @@ fn main() -> Result<()> {
         let program = Compiler::new(SourceType::RISCV, &elf)?.compile();
         let mut emulator = RiscvEmulator::new_single::<<SC as StarkGenericConfig>::Val>(
             program,
+            Arc::new(RecordFinalPvsState::default()),
             EmulatorOpts::default(),
             None,
         );
@@ -201,8 +209,8 @@ struct TraceStats {
 }
 
 // byte_lookups / poseidon2 are filled in later by the prover, so they are not listed.
-const CHIPS: [&str; 13] = [
-    "cpu", "add", "sub", "mul", "bitwise", "shift_left", "shift_right", "divrem", "lt",
+const CHIPS: [&str; 12] = [
+    "cpu", "add_sub", "mul", "bitwise", "shift_left", "shift_right", "divrem", "lt",
     "memory_init", "memory_finalize", "memory_local", "syscall",
 ];
 
@@ -221,16 +229,15 @@ impl TraceStats {
         self.chunks += 1;
         self.cpu_events += r.cpu_events.len() as u64;
         let base = r.program.pc_base;
-        for e in &r.cpu_events {
+        for e in r.cpu_events.as_slice() {
             *self.opcodes.entry(e.instruction.opcode).or_default() += 1;
             if let Some(slot) = (e.pc.wrapping_sub(base) / 4).try_into().ok().and_then(|i: usize| self.pc_hits.get_mut(i)) {
                 *slot += 1;
             }
         }
-        let counts: [u64; 13] = [
+        let counts: [u64; 12] = [
             r.cpu_events.len() as u64,
-            r.add_events.len() as u64,
-            r.sub_events.len() as u64,
+            r.add_sub_events.len() as u64,
             r.mul_events.len() as u64,
             r.bitwise_events.len() as u64,
             r.shift_left_events.len() as u64,
