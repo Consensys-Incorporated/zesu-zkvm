@@ -106,7 +106,7 @@ openvm/
 |---|---|---|
 | Zig | ≥ 0.16.0 | see `minimum_zig_version` in `build.zig.zon` |
 | Rust stable | ≥ 1.91 | `rustup update stable` |
-| OpenVM | [`v2.1.0-preview`](https://github.com/openvm-org/openvm/releases/tag/v2.1.0-preview) | git dep, locked to the revisions [eth-act/ere](https://github.com/eth-act/ere) v0.19.5 uses |
+| OpenVM | [`v2.1.0-preview`](https://github.com/openvm-org/openvm/releases/tag/v2.1.0-preview) | git dep, locked to the revisions [eth-act/ere](https://github.com/eth-act/ere) v0.19.5 and v0.20.0 use |
 | Rust nightly | `nightly-2026-01-18` | builds `pairing/` for `riscv64imac-unknown-none-elf` with `-Z build-std` (needs `rust-src` and `llvm-tools`); no OpenVM custom toolchain |
 | zesu/core | path dep | sibling at `../../zesu/core` |
 

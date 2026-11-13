@@ -2,7 +2,7 @@
 #
 # Prerequisites:
 #   - Zig (see minimum_zig_version in build.zig.zon)
-#   - Rust nightly-2025-08-04 (pinned in runner/rust-toolchain; rustup installs it
+#   - Rust nightly-2026-09-27 (pinned in runner/rust-toolchain; rustup installs it
 #     on first use)
 #   - Network access to fetch the zesu commit pinned in build.zig.zon, or a local zesu
 #     checkout passed as ZESU_SOURCE=<dir>. zesu is built inside this build, for Pico's own ISA
@@ -14,7 +14,7 @@
 #   make run INPUT=<file>     — build and execute end-to-end, printing execution stats (-X)
 #   make trace INPUT=<file>   — as run, plus the trace report (events per chip, instruction mix, hot
 #                               functions); several times slower
-#   make prove INPUT=<file>   — also generate + verify a RISCV-phase proof (slow)
+#   make prove INPUT=<file>   — also prove the full chain in whitelist mode, as ere does (slow)
 #   make test                 — execute all test vectors (VECTORS=<files> for a subset)
 #   make unit                 — native unit tests of the curve code
 #   make selftest             — run the crypto modules on the Pico VM (RUST_LOG=info for detail)

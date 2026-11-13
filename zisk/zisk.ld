@@ -1,7 +1,14 @@
-/* Linker script for Zisk zkVM (v1.3.2-alpha; map unchanged since v1.1.0-alpha)
- * ROM: 0x80000000 - 0x87F00000 (127MB) - code and read-only data
- *      Ends BEFORE FLOAT_LIB_ROM_ADDR (0x87F00000, the last 1MB of the 128MB
- *      ROM window), which ziskemu reserves for the float library's code.
+/* Linker script for Zisk zkVM (v1.4.0-alpha)
+ *
+ * v1.4.0-alpha moved the map: program ROM 0x80000000 -> 0x90000000, INPUT_ADDR
+ * 0x40000000 -> 0x10000000 (2GB input window), and reserved a ZisK library
+ * window just below each float-library window (ZISKLIB_ROM 1MB, ZISKLIB_RAM
+ * 192KB). The SYS/OUTPUT/stack addresses are unchanged.
+ *
+ * ROM: 0x90000000 - 0x97E00000 (126MB) - code and read-only data
+ *      Ends BEFORE ZISKLIB_ROM_ADDR (0x97E00000) and FLOAT_LIB_ROM_ADDR
+ *      (0x97F00000), the last 2MB of the 128MB ROM window, which ziskemu
+ *      reserves for the ZisK library's and the float library's code.
  *
  * ZisK system regions (NOT mapped here — managed by ziskemu). Mirrors upstream
  * ziskbuild/zisk_linker_script.ld; constants in zisk/core/src/mem.rs:
@@ -10,14 +17,16 @@
  *   0xa0408000 - 0xa0410000  SYS     (32KB float registers)
  *   0xa0410000 - 0xa0430000  OUTPUT  (128KB OUTPUT_MAX_SIZE, reserved)
  *
- * RAM: 0xa0430000 - 0xbfff0000 (~507MB) - writable data
+ * RAM: 0xa0430000 - 0xbffc0000 (~507MB) - writable data
  *      Starts at the first general-purpose RAM address, i.e. after the whole
  *      128KB OUTPUT region. Note OUTPUT_MAX_SIZE is 0x20000, not 0x10000: only
  *      the first 256 bytes (ZISK_PUBLICS * 4) are read back by the emulator, so
  *      a lower origin appears to work, but it puts .bss inside a region upstream
  *      reserves for output data.
- *      Ends BEFORE FLOAT_LIB_RAM_ADDR (0xbfff0000, the last 64KB of RAM), which
- *      ziskemu reserves for the float library's scratch space and stack.
+ *      Ends BEFORE ZISKLIB_RAM_ADDR (0xbffc0000): the last 256KB of RAM are
+ *      ZISKLIB_RAM (192KB, ZisK library scratch) then FLOAT_LIB_RAM (64KB at
+ *      0xbfff0000, the float library's scratch space and stack). Mirrors
+ *      _heap_top in upstream's ziskbuild/zisk_linker_script.ld.
  *
  * ziskemu maps the whole 0xa0000000..0xc0000000 range as one zero-initialized
  * writable section, so .bss needs no explicit clearing and every address past
@@ -30,12 +39,12 @@ ENTRY(_start)
 
 MEMORY
 {
-    /* Both regions stop short of the float library's reserved windows:
-     * ROM ends at FLOAT_LIB_ROM_ADDR (0x87f00000), RAM at FLOAT_LIB_RAM_ADDR
-     * (0xbfff0000). Excluding them here means an overrun fails the link rather
-     * than silently colliding with the float library at runtime. */
-    ROM (rx)  : ORIGIN = 0x80000000, LENGTH = 0x07F00000
-    RAM (rw)  : ORIGIN = 0xa0430000, LENGTH = 0x1FBC0000
+    /* Both regions stop short of the ZisK and float libraries' reserved windows:
+     * ROM ends at ZISKLIB_ROM_ADDR (0x97e00000), RAM at ZISKLIB_RAM_ADDR
+     * (0xbffc0000). Excluding them here means an overrun fails the link rather
+     * than silently colliding with those libraries at runtime. */
+    ROM (rx)  : ORIGIN = 0x90000000, LENGTH = 0x07E00000
+    RAM (rw)  : ORIGIN = 0xa0430000, LENGTH = 0x1FB90000
 }
 
 PHDRS
@@ -145,7 +154,7 @@ SECTIONS
      * at this point, so there are no forward references to resolve. */
     . = ALIGN(8);
     __zesu_heap_bottom = . + 16;                    /* heap starts after the two words below */
-    __zesu_heap_top    = ORIGIN(RAM) + LENGTH(RAM); /* 0xbfff0000, below FLOAT_LIB_RAM_ADDR */
+    __zesu_heap_top    = ORIGIN(RAM) + LENGTH(RAM); /* 0xbffc0000, below ZISKLIB_RAM_ADDR */
     .zesu_heap_vars : {
         ZKVM_HEAP_POS = .;
         QUAD(__zesu_heap_bottom);
@@ -171,10 +180,10 @@ SECTIONS
      *    origin silently "works" while .bss squats on reserved output space. */
     ASSERT(ORIGIN(RAM) >= 0xa0430000,
            "RAM must start at or after 0xa0430000 (end of the 128KB OUTPUT region)")
-    /* 3. The heap must stay below FLOAT_LIB_RAM_ADDR (0xbfff0000), which ziskemu
-     *    uses for the float library's scratch space and stack. */
-    ASSERT(__zesu_heap_top <= 0xbfff0000,
-           "zesu heap must end at or below FLOAT_LIB_RAM_ADDR (0xbfff0000)")
+    /* 3. The heap must stay below ZISKLIB_RAM_ADDR (0xbffc0000): ZisK library
+     *    scratch, then the float library's scratch space and stack. */
+    ASSERT(__zesu_heap_top <= 0xbffc0000,
+           "zesu heap must end at or below ZISKLIB_RAM_ADDR (0xbffc0000)")
     /* 4. Catch a heap that has collapsed to nothing (or inverted) — e.g. if .bss
      *    ever grows past the end of RAM. */
     ASSERT(__zesu_heap_bottom < __zesu_heap_top,
@@ -190,7 +199,7 @@ SECTIONS
 
     /* Discard unnecessary sections.
      * Debug sections must be dropped: R_RISCV_SET32 is a signed 32-bit
-     * relocation but our ROM base (0x80000000) exceeds the signed max,
+     * relocation but our ROM base (0x90000000) exceeds the signed max,
      * so LLD cannot resolve these relocations in release builds. */
     /DISCARD/ : {
         *(.comment)

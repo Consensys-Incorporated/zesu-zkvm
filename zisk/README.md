@@ -2,7 +2,7 @@
 
 Zisk zkVM guest for zesu — compiles the Ethereum stateless block executor to a
 `riscv64-freestanding-none` ELF that runs inside the
-[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.3.2-alpha).
+[Zisk zkVM](https://github.com/0xPolygonHermez/zisk) (v1.4.0-alpha).
 
 ## Architecture
 
@@ -44,7 +44,7 @@ each symbol defined exactly once.
 | Symbol(s) | Source | Implementation |
 |---|---|---|
 | `zkvm_log` | `zisk_host.zig` | UART (0xa0400200) |
-| `read_input`, `write_output` | `libziskos_staticlib.a` | memory-mapped IO (0x40000000 / 0xa0410000) |
+| `read_input`, `write_output` | `libziskos_staticlib.a` | memory-mapped IO (0x10000000 / 0xa0410000) |
 | all `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1, bn254, bls12-381, ripemd160, blake2f, modexp, kzg_point_eval) | `libziskos_staticlib.a` | ZisK circuit-backed implementations (Rust) |
 | `_start`, `_zisk_main`, `init_sys_alloc` | `libziskos_staticlib.a` | Rust entry-point chain |
 | `ZISK_BUMP_HEAP_POS`, `ZISK_BUMP_HEAP_TOP` | `libziskos_staticlib.a` | ziskos's **private** heap — an isolated 8 MiB static buffer. Do **not** alias `ZKVM_HEAP_POS`/`TOP` onto these (see Memory map) |
@@ -70,8 +70,8 @@ zisk/
 | Dependency | Version | Notes |
 |---|---|---|
 | Zig | 0.16.0 | see `minimum_zig_version` in `build.zig.zon`; CI pins exactly 0.16.0 |
-| Rust + cargo-zisk | 1.3.2-alpha | ZisK custom Rust toolchain |
-| Zisk source | v1.3.2-alpha | for building `libziskos_staticlib.a` |
+| Rust + cargo-zisk | 1.4.0-alpha | ZisK custom Rust toolchain |
+| Zisk source | v1.4.0-alpha | for building `libziskos_staticlib.a` |
 | zesu | pinned in `build.zig.zon` | fetched by `zig build`; `ZESU_SOURCE=<dir>` (`--fork`) builds a local checkout, `-Dzesu_obj` links a pre-built object |
 
 ## Building `lib/libziskos_staticlib.a`
@@ -93,8 +93,8 @@ curl -L https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/insta
 # 2. Install the Zisk Rust toolchain (downloads ~1.5 GB)
 cargo-zisk toolchain install
 
-# 3. Clone Zisk v1.3.2-alpha alongside this repo (or set ZISK_DIR)
-git clone --branch v1.3.2-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
+# 3. Clone Zisk v1.4.0-alpha alongside this repo (or set ZISK_DIR)
+git clone --branch v1.4.0-alpha https://github.com/0xPolygonHermez/zisk ../../zisk
 ```
 
 ### Build the library
@@ -186,21 +186,29 @@ main()           (zesu.o / zesu/src/zkvm/root.zig, Zig, export fn)
   returns 0 (success) or 1 (guestMain() error) — no explicit halt call
 ```
 
-## Memory map (Zisk 1.3.2-alpha — unchanged since 1.1.0-alpha)
+## Memory map (Zisk 1.4.0-alpha)
 
 Authoritative constants live in `zisk/core/src/mem.rs`; this mirrors upstream's
-`ziskbuild/zisk_linker_script.ld`.
+`ziskbuild/zisk_linker_script.ld`. 1.4.0-alpha moved program ROM from
+`0x80000000` to `0x90000000` and INPUT from `0x40000000` to `0x10000000`, and
+reserved a ZisK library window below each float-library window. A
+`libziskos_staticlib.a` built from 1.3.x bakes in the old `INPUT_ADDR`, so
+rebuild it after a version bump (`make clean-lib`).
 
 | Region | Address | Size |
 |---|---|---|
-| ROM (code + rodata) | `0x80000000` | 128 MB (last 1 MB reserved for float lib) |
+| INPUT | `0x10000000` | 2 GB |
+| ROM (code + rodata) | `0x90000000` | 126 MB |
+| ZisK lib ROM (`ZISKLIB_ROM_ADDR`) | `0x97e00000` | 1 MB |
+| float lib ROM (`FLOAT_LIB_ROM_ADDR`) | `0x97f00000` | 1 MB |
+| stack guard (unmapped) | `0x98000000` | 128 MB |
 | STACK (grows down from the top) | `0xa0000000` | 4 MB |
 | SYS — general registers; UART at `0xa0400200` | `0xa0400000` | 32 KB |
 | SYS — float registers | `0xa0408000` | 32 KB |
 | OUTPUT (`OUTPUT_MAX_SIZE`) | `0xa0410000` | 128 KB |
 | RAM — `.data`/`.bss`, then zesu's heap | `0xa0430000` | ~507 MB |
+| ZisK lib RAM (`ZISKLIB_RAM_ADDR`) | `0xbffc0000` | 192 KB |
 | float lib RAM (`FLOAT_LIB_RAM_ADDR`) | `0xbfff0000` | 64 KB |
-| INPUT | `0x40000000` | 1 GB |
 
 Three things that are easy to get wrong here:
 
