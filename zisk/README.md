@@ -137,7 +137,7 @@ Output: `zig-out/bin/zesu-zisk`
 The build executes three steps:
 
 1. **Compile `zesu.o`** — zesu's `addGuestObject`, called with this build's
-   ZisK target (and `has_dma`), from the zesu pinned in `build.zig.zon`; or
+   ZisK target (and its `GuestFeatures`), from the zesu pinned in `build.zig.zon`; or
    supplied directly via `-Dzesu_obj`. All `zkvm_*`, IO, and heap symbols are
    unresolved extern refs.
 2. **Partial link** — `zig ld.lld -r --whole-archive zisk-host.o
