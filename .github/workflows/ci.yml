@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [main]
 
+permissions: {} # lock everything by default (least-privilege)
+
 env:
   ZISK_VERSION: "1.3.2-alpha"
   ZISK_TARGET: riscv64ima-zisk-zkvm-elf
@@ -31,16 +33,20 @@ jobs:
   ci:
     name: Lint, Build & Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout only; nothing here writes to the repo
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           path: zesu-zkvm
 
       - name: Checkout zisk
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           repository: 0xPolygonHermez/zisk
           ref: v${{ env.ZISK_VERSION }}
           path: zisk
@@ -97,6 +103,7 @@ jobs:
       - name: Checkout zesu
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           repository: Consensys-Incorporated/zesu
           ref: ${{ env.ZESU_REF }}
           path: zesu
@@ -156,16 +163,20 @@ jobs:
   vectors:
     name: Vectors
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout only; nothing here writes to the repo
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           path: zesu-zkvm
 
       - name: Checkout zisk
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           repository: 0xPolygonHermez/zisk
           ref: v${{ env.ZISK_VERSION }}
           path: zisk
@@ -228,12 +239,15 @@ jobs:
   openvm:
     name: OpenVM (build & vectors)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout only; nothing here writes to the repo
     timeout-minutes: 60
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           path: zesu-zkvm
 
       - name: Install Zig
@@ -256,6 +270,7 @@ jobs:
       - name: Checkout zesu
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           repository: Consensys-Incorporated/zesu
           ref: ${{ env.ZESU_OPENVM_REF }}
           path: zesu
@@ -287,11 +302,15 @@ jobs:
   pico:
     name: Pico (build, test & vectors)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout only; nothing here writes to the repo
     timeout-minutes: 60
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
 
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
@@ -347,11 +366,15 @@ jobs:
   sp1:
     name: SP1 (build & vectors)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout only; nothing here writes to the repo
     timeout-minutes: 60
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
 
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1

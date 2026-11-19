@@ -61,21 +61,25 @@ env:
   # Note the ghcr tag has no "v" prefix, unlike ere's git tag (v0.19.5).
   ERE_TAG: "0.19.5"
 
-permissions:
-  contents: write
+permissions: {} # lock everything by default (least-privilege)
 
 jobs:
   compile-zisk:
     name: Compile stateless-validator-zesu-zisk
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # build only; this job runs third-party scripts and images
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
 
       - name: Checkout zisk
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           repository: 0xPolygonHermez/zisk
           ref: v${{ env.ZISK_VERSION }}
           path: upstream-zisk
@@ -135,6 +139,7 @@ jobs:
         if: inputs.zesu_version != ''
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           repository: Consensys-Incorporated/zesu
           ref: ${{ inputs.zesu_version }}
           path: zesu
@@ -176,10 +181,14 @@ jobs:
   compile-sp1:
     name: Compile stateless-validator-zesu-sp1
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # build only; this job runs third-party scripts and images
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
 
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
@@ -197,6 +206,7 @@ jobs:
         if: inputs.zesu_version != ''
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
           repository: Consensys-Incorporated/zesu
           ref: ${{ inputs.zesu_version }}
           path: zesu
@@ -238,10 +248,14 @@ jobs:
   compile-openvm:
     name: Compile stateless-validator-zesu-openvm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # build only; this job runs third-party scripts and images
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
 
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
@@ -249,10 +263,12 @@ jobs:
           version: "0.16.0"
 
       - name: Download zesu object
+        env:
+          ZESU_VERSION: ${{ inputs.zesu_version }} # inputs go through env, never straight into the script (template injection)
         run: |
           mkdir -p /tmp/zesu-obj
-          if [ -n "${{ inputs.zesu_version }}" ]; then
-            URL="https://github.com/Consensys-Incorporated/zesu/releases/download/${{ inputs.zesu_version }}/zesu.rv64im.o"
+          if [ -n "$ZESU_VERSION" ]; then
+            URL="https://github.com/Consensys-Incorporated/zesu/releases/download/$ZESU_VERSION/zesu.rv64im.o"
           else
             URL="https://github.com/Consensys-Incorporated/zesu/releases/latest/download/zesu.rv64im.o"
           fi
@@ -305,10 +321,14 @@ jobs:
   compile-linea:
     name: Compile stateless-validator-zesu-linea
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # build only; this job downloads and links a prebuilt object
 
     steps:
       - name: Checkout zesu-zkvm
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false # keep the GITHUB_TOKEN out of .git/config; no later step needs git auth
 
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
@@ -316,10 +336,12 @@ jobs:
           version: "0.16.0"
 
       - name: Download zesu object
+        env:
+          ZESU_VERSION: ${{ inputs.zesu_version }} # inputs go through env, never straight into the script (template injection)
         run: |
           mkdir -p /tmp/zesu-obj
-          if [ -n "${{ inputs.zesu_version }}" ]; then
-            URL="https://github.com/Consensys-Incorporated/zesu/releases/download/${{ inputs.zesu_version }}/zesu.rv64im.o"
+          if [ -n "$ZESU_VERSION" ]; then
+            URL="https://github.com/Consensys-Incorporated/zesu/releases/download/$ZESU_VERSION/zesu.rv64im.o"
           else
             URL="https://github.com/Consensys-Incorporated/zesu/releases/latest/download/zesu.rv64im.o"
           fi
@@ -340,6 +362,8 @@ jobs:
     name: Publish draft GitHub Release
     needs: [compile-zisk, compile-sp1, compile-openvm, compile-linea]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the draft release and upload its assets
 
     steps:
       - name: Download artifacts
@@ -389,10 +413,13 @@ jobs:
       - name: Create draft GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # inputs go through env, never straight into the script (template injection)
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ZESU_LABEL: "${{ inputs.zesu_version || 'latest (zisk, sp1: the build.zig.zon pins)' }}"
         run: |
-          gh release create "${{ inputs.release_tag }}" \
+          gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "${{ inputs.release_tag }}" \
-            --notes "Built against zesu ${{ inputs.zesu_version || 'latest (zisk, sp1: the build.zig.zon pins)' }}" \
+            --title "$RELEASE_TAG" \
+            --notes "Built against zesu $ZESU_LABEL" \
             --draft \
             artifacts/*
