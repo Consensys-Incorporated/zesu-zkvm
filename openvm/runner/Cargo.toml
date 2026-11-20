@@ -8,7 +8,7 @@ description = "Host runner for the zesu-openvm zkVM guest"
 name = "zesu-openvm-runner"
 path = "src/main.rs"
 
-# Pinned to what eth-act/ere v0.19.5 executes guests with, so a pass here means
+# Pinned to what eth-act/ere v0.19.5 and v0.20.0 (unchanged) execute guests with, so a pass here means
 # a pass on the dashboard: openvm v2.1.0-preview plus han0110's patch branch.
 # Cargo.lock is seeded from ere's, which fixes the revisions.
 [dependencies]

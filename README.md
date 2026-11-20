@@ -8,11 +8,11 @@ zkVM target.
 
 | Directory | zkVM | Status |
 |---|---|---|
-| [`zisk/`](zisk/) | [Zisk 1.3.2-alpha](https://github.com/0xPolygonHermez/zisk) | Working |
+| [`zisk/`](zisk/) | [Zisk 1.4.0-alpha](https://github.com/0xPolygonHermez/zisk) | Working |
 | [`sp1/`](sp1/) | [SP1 6.9.0](https://github.com/succinctlabs/sp1) | Working (execution; see its README) |
 | [`openvm/`](openvm/) | [openvm](https://github.com/openvm-org/openvm) | Working (emulation only, no proofs) |
 | [`linea/`](linea/) | [Linea zkVM](https://github.com/Consensys/linea-zkvm) | Working |
-| [`pico/`](pico/) | [Pico](https://github.com/brevis-network/pico) | Execution works; see its README |
+| [`pico/`](pico/) | [Pico 3.1.0](https://github.com/brevis-network/pico) (`613d6ae`) | Execution works; see its README |
 
 The zkVM-independent crypto (pure-Zig primitives, curve code generic over a field backend, and
 their unit tests) lives in [`shared/`](shared/) and is used by the targets above.

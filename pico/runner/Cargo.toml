@@ -11,8 +11,12 @@ path = "src/main.rs"
 [workspace]
 
 [dependencies]
-# Pinned to the v2.1.2 release (bfa8f12). Pico builds with the nightly named in
-# rust-toolchain; cargo fetches the git checkout itself.
-pico-vm = { git = "https://github.com/brevis-network/pico", rev = "bfa8f12e6e1a19a56f61dea8d78a5dd3a28de255", features = ["mmap-memory"] }
+# Pinned to the Pico revision eth-act/ere v0.20.0 uses (613d6ae, crate version 3.1.0; see
+# pico-prover/pico-sdk in ere's Cargo.toml). Keep in sync with ere: the release workflow
+# generates the VK with ere-server-pico, which embeds this revision. Pico builds with the
+# nightly named in rust-toolchain; cargo fetches the git checkout itself.
+pico-vm = { git = "https://github.com/brevis-network/pico", rev = "613d6aeb64350d73faf24c17e2e3e3cee5b763bc", features = ["mmap-memory"] }
+# The full-chain prover ere's PicoProver wraps; used for -p.
+pico-prover = { git = "https://github.com/brevis-network/pico", rev = "613d6aeb64350d73faf24c17e2e3e3cee5b763bc", features = ["mmap-memory"] }
 eyre = "0.6"
 elf = "0.7"

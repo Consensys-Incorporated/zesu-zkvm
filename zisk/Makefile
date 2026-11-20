@@ -9,7 +9,7 @@
 #     ISA target (see build.zig).
 #
 # Usage:
-#   make lib/libziskos_staticlib.a — build the Zisk OS static library (ZisK 1.3.2-alpha)
+#   make lib/libziskos_staticlib.a — build the Zisk OS static library (ZisK 1.4.0-alpha)
 #   make                           — build lib/libziskos_staticlib.a then the Zig guest ELF
 #   make run INPUT=<file>          — build and run under ziskemu
 #   make clean                     — remove build artifacts (preserves lib/libziskos_staticlib.a)
@@ -56,7 +56,7 @@ $(LIB_OUT):
 	    { echo "ERROR: cargo not found. Install Rust: https://rustup.rs"; exit 1; }
 	@test -d $(ZISK_DIR) || \
 	    { echo "ERROR: ZISK_DIR=$(ZISK_DIR) not found."; \
-	      echo "       Clone zisk: git clone --branch v1.3.2-alpha https://github.com/0xPolygonHermez/zisk $(ZISK_DIR)"; \
+	      echo "       Clone zisk: git clone --branch v1.4.0-alpha https://github.com/0xPolygonHermez/zisk $(ZISK_DIR)"; \
 	      echo "       Or set ZISK_DIR=/path/to/zisk"; exit 1; }
 	@$(CARGO) +zisk --version >/dev/null 2>&1 || \
 	    { echo "ERROR: Zisk Rust toolchain 'zisk' not installed."; \
