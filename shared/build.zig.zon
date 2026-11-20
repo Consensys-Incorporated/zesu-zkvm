@@ -7,8 +7,8 @@
         // zesu is only used for the Besu EIP-2537 CSV suites under src/evm/precompile/testdata
         // (embedded by the BLS12-381 tests). Keep this pin in step with pico/build.zig.zon.
         .zesu = .{
-            .url = "git+https://github.com/Consensys-Incorporated/zesu#501b3433e3cd554080f2a1c583573ea1e8be1aa0",
-            .hash = "zesu-0.1.0-UtqpAN82RwBVKDU3fSMvojifmzTerQKsKcnSi2ME0ZXC",
+            .url = "git+https://github.com/Consensys-Incorporated/zesu#886237a564ed91df488d834b7c65d6671a036055",
+            .hash = "zesu-0.1.0-UtqpAPMgRwDGnn8Zz9bKyq7TfCaVpMwQYCwxzfzRQ11R",
         },
     },
     .paths = .{ "build.zig", "build.zig.zon", "src", "scripts", "README.md" },
