@@ -46,7 +46,7 @@ export fn zkvm_abort() noreturn {
 /// Accelerators served by ZisK's hand-written routines (ziskasm, ZisK >= 1.4): name and
 /// zkvmcall id. The transpiler replaces `csrs <id>, x0` with a jump to the routine, which
 /// takes the C-ABI arguments and returns to the caller. zisk/Makefile's ZKVMCALLS makes
-/// libziskos's own copies of these local.
+/// libziskos's own copies of the accelerators local.
 const zkvmcalls = [_]struct { []const u8, u16 }{
     .{ "zkvm_keccak256", 0x850 },
     .{ "zkvm_sha256", 0x851 },
@@ -64,6 +64,15 @@ const zkvmcalls = [_]struct { []const u8, u16 }{
     .{ "zkvm_bls12_pairing", 0x860 },
     .{ "zkvm_bls12_map_fp_to_g1", 0x861 },
     .{ "zkvm_bls12_map_fp2_to_g2", 0x862 },
+    // 256-bit arithmetic on four little-endian limbs (zesu's `u256_calls`); libziskos has
+    // no copy of these.
+    .{ "zkvm_u256_le_div", 0x880 },
+    .{ "zkvm_u256_le_mod", 0x881 },
+    .{ "zkvm_u256_le_sdiv", 0x883 },
+    .{ "zkvm_u256_le_smod", 0x884 },
+    .{ "zkvm_u256_le_addmod", 0x889 },
+    .{ "zkvm_u256_le_mulmod", 0x88A },
+    .{ "zkvm_u256_le_exp", 0x88B },
 };
 
 comptime {

@@ -101,7 +101,10 @@ pub fn build(b: *std.Build) void {
 /// with the same zesu-zkvm checkout).
 fn guestFeatures(zisk: bool) GuestObjectArg {
     if (GuestObjectArg == bool) return zisk;
-    return .{ .dma = zisk, .jump_dest = zisk, .arith256_mod = zisk };
+    var f: GuestObjectArg = .{ .dma = zisk, .jump_dest = zisk, .arith256_mod = zisk };
+    // Features a newer zesu adds are switched on when the zesu being built has them.
+    if (@hasField(GuestObjectArg, "u256_calls")) f.u256_calls = zisk;
+    return f;
 }
 
 const GuestObjectArg = @typeInfo(@TypeOf(zesu_build.addGuestObject)).@"fn".params[3].type.?;
