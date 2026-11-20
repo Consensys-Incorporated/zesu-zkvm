@@ -14,8 +14,9 @@ zesu.o          — EVM + stateless execution logic (from zesu/src/zkvm)
                   symbols (IO, crypto, heap, runtime) as extern refs.
 
 zisk-wrapped.o  — All platform symbols, merged in a partial-link step:
-                    zisk-host.o          (Zig)   zkvm_log
-                  + libziskos_staticlib.a (Rust)  everything else — all zkvm_*
+                    zisk-host.o          (Zig)   zkvm_log, zkvmcall thunks for most
+                                                   zkvm_* accelerators
+                  + libziskos_staticlib.a (Rust)  everything else — the remaining
                                                    accelerators, read_input/
                                                    write_output, entry-point
                                                    chain, heap init, exit
@@ -23,20 +24,20 @@ zisk-wrapped.o  — All platform symbols, merged in a partial-link step:
 
 The partial link step (`zig ld.lld -r --whole-archive zisk-host.o
 libziskos_staticlib.a --no-whole-archive`) merges `zisk-host.o` and
-`libziskos_staticlib.a` into `zisk-wrapped.o`. Since ZisK 1.0.0-alpha,
-**all** `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1,
-BN254, BLS12-381, RIPEMD-160, BLAKE2f, modexp, KZG point eval, …) are
-circuit-backed implementations provided directly by ZisK's own
-`libziskos_staticlib.a`. `zisk-host.o` no longer contains any bespoke Zig
-CSR implementations — the earlier generation of hand-written accelerators in
-`src/runtime/` was dropped in favor of linking straight to ZisK's Rust
-implementations. `zisk-host.o` now only exports `zkvm_log`, the one runtime
-symbol ZisK doesn't provide itself. `zesu.o`'s `main()` returns its status
+`libziskos_staticlib.a` into `zisk-wrapped.o`. Most `zkvm_*` accelerators
+are **zkvmcalls** (ZisK >= 1.4): `zisk-host.o` defines each as the two-instruction
+thunk `csrs <id>, x0; ret`, and the transpiler replaces the `csrs` with a jump to
+ZisK's hand-written routine in the ZisK library ROM, which takes the C-ABI arguments
+and returns to the caller (see `ziskasm/ziskcsr.md` in the ZisK repo). The Makefile
+makes libziskos's own Rust copies of those functions local (`ZKVMCALLS`,
+`llvm-objcopy --localize-symbol`) so each symbol is still defined once; the list
+there and `zkvmcalls` in `zisk_host.zig` must match, and a mismatch fails the link.
+`zkvm_ripemd160`, `zkvm_secp256k1_verify` and `zkvm_secp256r1_verify` stay on
+libziskos's Rust implementations. `zesu.o`'s `main()` returns its status
 (0/1) in `a0` per the RISC-V C ABI rather than calling an explicit halt
 function; `libziskos_staticlib.a`'s own `_start` performs the `exit(93)`
 ecall automatically once `main()` returns, with `a0` passed through
-untouched — so no exit routine, and no inline assembly, lives in this repo's
-ZisK target at all. The final link is a clean `zesu.o + zisk-wrapped.o` with
+untouched — so no exit routine lives in this repo's ZisK target. The final link is a clean `zesu.o + zisk-wrapped.o` with
 each symbol defined exactly once.
 
 ### Symbol ownership
@@ -45,7 +46,8 @@ each symbol defined exactly once.
 |---|---|---|
 | `zkvm_log` | `zisk_host.zig` | UART (0xa0400200) |
 | `read_input`, `write_output` | `libziskos_staticlib.a` | memory-mapped IO (0x10000000 / 0xa0410000) |
-| all `zkvm_*` accelerators (keccak256, sha256, secp256k1, secp256r1, bn254, bls12-381, ripemd160, blake2f, modexp, kzg_point_eval) | `libziskos_staticlib.a` | ZisK circuit-backed implementations (Rust) |
+| `zkvm_keccak256`, `zkvm_sha256`, `zkvm_secp256k1_ecrecover`, `zkvm_modexp`, `zkvm_bn254_*`, `zkvm_blake2f`, `zkvm_kzg_point_eval`, `zkvm_bls12_*` | `zisk_host.zig` | zkvmcall thunks into ZisK's hand-written routines |
+| `zkvm_ripemd160`, `zkvm_secp256k1_verify`, `zkvm_secp256r1_verify` | `libziskos_staticlib.a` | ZisK circuit-backed implementations (Rust) |
 | `_start`, `_zisk_main`, `init_sys_alloc` | `libziskos_staticlib.a` | Rust entry-point chain |
 | `ZISK_BUMP_HEAP_POS`, `ZISK_BUMP_HEAP_TOP` | `libziskos_staticlib.a` | ziskos's **private** heap — an isolated 8 MiB static buffer. Do **not** alias `ZKVM_HEAP_POS`/`TOP` onto these (see Memory map) |
 | `ZKVM_HEAP_POS`, `ZKVM_HEAP_TOP` | `zisk.ld` (`.zesu_heap_vars`) | zesu's own heap bounds: RAM past `.bss` up to `FLOAT_LIB_RAM_ADDR` |

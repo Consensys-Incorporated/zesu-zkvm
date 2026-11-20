@@ -31,6 +31,15 @@ ZISK_RUSTFLAGS ?= -C target-feature=+unaligned-scalar-mem
 CARGO     ?= cargo
 
 LIB_OUT   = lib/libziskos_staticlib.a
+
+# Accelerators src/zisk_host.zig provides as zkvmcall thunks. libziskos's own copies are
+# made local so the two do not clash; the lists must match (a mismatch fails the link).
+ZKVMCALLS = zkvm_keccak256 zkvm_sha256 zkvm_secp256k1_ecrecover zkvm_modexp \
+            zkvm_bn254_g1_add zkvm_bn254_g1_mul zkvm_bn254_pairing zkvm_blake2f \
+            zkvm_kzg_point_eval zkvm_bls12_g1_add zkvm_bls12_g1_msm zkvm_bls12_g2_add \
+            zkvm_bls12_g2_msm zkvm_bls12_pairing zkvm_bls12_map_fp_to_g1 zkvm_bls12_map_fp2_to_g2
+# llvm-objcopy ships in the zisk Rust toolchain.
+LLVM_OBJCOPY ?= $(shell find "$$(rustup run zisk rustc --print sysroot 2>/dev/null)" -name llvm-objcopy -type f 2>/dev/null | head -1)
 CARGO_OUT = $(ZISK_DIR)/target/$(ZISK_TARGET)/release/lib$(ZISK_LIB).a
 
 ZIG       ?= zig
@@ -67,6 +76,9 @@ $(LIB_OUT):
 	    --config 'profile.release.lto="fat"'
 	@mkdir -p lib
 	cp $(CARGO_OUT) $(LIB_OUT)
+	@test -n "$(LLVM_OBJCOPY)" || \
+	    { echo "ERROR: llvm-objcopy not found in the zisk toolchain (set LLVM_OBJCOPY=<path>)"; rm -f $(LIB_OUT); exit 1; }
+	$(LLVM_OBJCOPY) $(addprefix --localize-symbol=,$(ZKVMCALLS)) $(LIB_OUT)
 	@echo "==> Copied $(LIB_OUT)  ($$(wc -c < $(LIB_OUT)) bytes)"
 
 run: all
