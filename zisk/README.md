@@ -47,6 +47,7 @@ each symbol defined exactly once.
 | `zkvm_log` | `zisk_host.zig` | UART (0xa0400200) |
 | `read_input`, `write_output` | `libziskos_staticlib.a` | memory-mapped IO (0x10000000 / 0xa0410000) |
 | `zkvm_keccak256`, `zkvm_sha256`, `zkvm_secp256k1_ecrecover`, `zkvm_modexp`, `zkvm_bn254_*`, `zkvm_blake2f`, `zkvm_kzg_point_eval`, `zkvm_bls12_*` | `zisk_host.zig` | zkvmcall thunks into ZisK's hand-written routines |
+| `zkvm_u256_le_div` / `_mod` / `_sdiv` / `_smod` / `_addmod` / `_mulmod` / `_exp` | `zisk_host.zig` | zkvmcall thunks into ZisK's 256-bit routines; called by zesu builds that have the `u256_calls` guest feature |
 | `zkvm_ripemd160`, `zkvm_secp256k1_verify`, `zkvm_secp256r1_verify` | `libziskos_staticlib.a` | ZisK circuit-backed implementations (Rust) |
 | `_start`, `_zisk_main`, `init_sys_alloc` | `libziskos_staticlib.a` | Rust entry-point chain |
 | `ZISK_BUMP_HEAP_POS`, `ZISK_BUMP_HEAP_TOP` | `libziskos_staticlib.a` | ziskos's **private** heap — an isolated 8 MiB static buffer. Do **not** alias `ZKVM_HEAP_POS`/`TOP` onto these (see Memory map) |
