@@ -22,12 +22,12 @@ env:
   # without anything failing loudly. Pinning a commit makes the coupling between
   # the two repos explicit — bump this line to move.
   #
-  # zesu at tests-zkevm@v21.0.7 (886237a): NewPayloadRequest is hashed as a ProgressiveContainer,
+  # zesu at tests-zkevm@v21.0.7 (9fd1e6e): NewPayloadRequest is hashed as a ProgressiveContainer,
   # so the expected output roots follow it. The input layout is unchanged from v21.0.5.
-  ZESU_REF: "886237a564ed91df488d834b7c65d6671a036055"
+  ZESU_REF: "9fd1e6e676f5b3ee99e4036d5b767955762f1a9d"
   # Same pin for the openvm vectors job, which asserts the guest built from
   # current zesu still reproduces the expected roots.
-  ZESU_OPENVM_REF: "886237a564ed91df488d834b7c65d6671a036055"
+  ZESU_OPENVM_REF: "9fd1e6e676f5b3ee99e4036d5b767955762f1a9d"
 
 jobs:
   ci:
