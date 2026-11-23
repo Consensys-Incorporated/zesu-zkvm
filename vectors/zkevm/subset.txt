@@ -34,7 +34,8 @@ osaka/eip7951_p256verify_precompiles/p256verify/valid.json                      
 ported_static/stSStoreTest/sstore_0to_xto0/sstore_0to_xto0.json
 prague/eip7702_set_code_tx/set_code_txs/set_code_to_sstore_then_sload.json
 cancun/eip6780_selfdestruct/selfdestruct_finalization/selfdestruct_clears_nonce_and_storage.json
-mpt/storage_trie_structure/delete_from_block_built_trie.json
+# b0 builds a storage trie, b1 deletes a slot so a branch collapses into a leaf, b2 restores it.
+mpt/storage_trie_structure/delete_from_block_built_trie.json                    all pick=collapse_to_leaf
 
 # ── Invalid blocks: the guest must report valid = false ──
 london/validation/header/invalid_header.json                                      1  invalid

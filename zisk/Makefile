@@ -97,7 +97,7 @@ test: $(LIB_OUT)
 
 bless: $(LIB_OUT)
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
-	@for bin in ../vectors/*.bin; do \
+	@for bin in $(VECTORS); do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \

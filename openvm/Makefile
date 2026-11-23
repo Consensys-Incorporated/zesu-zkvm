@@ -64,9 +64,10 @@ pairing-lib:
 	    --localize-symbol=memcmp --localize-symbol=bcmp \
 	    $(PAIRING_BUILT) $(PAIRING_LIB)
 
-runner: $(RUNNER)
-
-$(RUNNER):
+# Phony, so cargo's incremental build decides when the runner is stale: a file target with no
+# prerequisites would keep using an old binary (e.g. one restored from a CI cache) after its
+# source changes.
+runner:
 	@command -v $(CARGO) >/dev/null 2>&1 || \
 	    { echo "ERROR: cargo not found. Install Rust: https://rustup.rs"; exit 1; }
 	@# Drop make's MAKEFLAGS: GNU make >= 4.4 appends command-line variables
@@ -84,7 +85,7 @@ test: runner
 
 bless: runner
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
-	@for bin in ../vectors/*.bin; do \
+	@for bin in $(VECTORS); do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \

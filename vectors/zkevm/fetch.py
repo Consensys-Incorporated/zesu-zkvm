@@ -4,7 +4,7 @@
 Reads the blocks subset.txt selects from an execution-specs fixtures_zkevm.tar.gz and writes each
 as vectors/zkevm.<name>.bin (u64 LE payload length + SSZ input, zero-padded to 8 bytes, the format
 every runner takes) and vectors/zkevm.<name>.expected.hex (its statelessOutputBytes). Existing
-zkevm.* vectors are replaced. The release used is recorded in vectors/zkevm/RELEASE.
+zkevm.* vectors are replaced only once every subset line has matched. The release used is recorded in vectors/zkevm/RELEASE.
 
 Use the release the guests' pinned zesu declares (`zkevm_version` in zesu's build.zig):
 
@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import tarfile
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURE_ROOT = "blockchain_tests/for_amsterdam/"
@@ -111,30 +112,41 @@ def main():
     args = ap.parse_args()
 
     entries = parse_subset(args.subset)
-    for old in glob.glob(os.path.join(args.out, "zkevm.*.bin")) + glob.glob(os.path.join(args.out, "zkevm.*.expected.hex")):
-        os.remove(old)
 
-    written = []
-    with tarfile.open(args.tarball, mode="r|gz") as tar:
-        for m in tar:
-            if not m.isfile() or not m.name.endswith(".json"):
-                continue
-            idx = m.name.find(FIXTURE_ROOT)
-            if idx < 0:
-                continue
-            rel = m.name[idx + len(FIXTURE_ROOT) :]
-            if any(fnmatch.fnmatchcase(rel, e["glob"]) for e in entries):
-                written += convert(rel, json.load(tar.extractfile(m)), entries, args.out)
+    # Build the new set in a scratch directory next to the output, and only replace the checked-in
+    # vectors once every subset line has matched: a bad tarball or a fixture renamed upstream must
+    # leave vectors/ and RELEASE untouched.
+    os.makedirs(args.out, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=args.out, prefix=".zkevm-fetch-") as tmp:
+        written = []
+        with tarfile.open(args.tarball, mode="r|gz") as tar:
+            for m in tar:
+                if not m.isfile() or not m.name.endswith(".json"):
+                    continue
+                idx = m.name.find(FIXTURE_ROOT)
+                if idx < 0:
+                    continue
+                rel = m.name[idx + len(FIXTURE_ROOT) :]
+                if any(fnmatch.fnmatchcase(rel, e["glob"]) for e in entries):
+                    written += convert(rel, json.load(tar.extractfile(m)), entries, tmp)
 
-    missing = [e for e in entries if e["hits"] == 0 or e["taken"] == 0]
-    for e in missing:
-        print(f"error: {args.subset}:{e['line']}: {e['glob']} matched no fixture block", file=sys.stderr)
-    if missing:
-        sys.exit(1)
+        missing = [e for e in entries if e["hits"] == 0 or e["taken"] == 0]
+        for e in missing:
+            print(f"error: {args.subset}:{e['line']}: {e['glob']} matched no fixture block", file=sys.stderr)
+        if missing:
+            sys.exit("error: vectors left unchanged")
+        dupes = sorted({n for n in written if written.count(n) > 1})
+        if dupes:
+            sys.exit(f"error: several subset lines produce the same vector: {', '.join(dupes)}; vectors left unchanged")
+
+        for old in glob.glob(os.path.join(args.out, "zkevm.*.bin")) + glob.glob(os.path.join(args.out, "zkevm.*.expected.hex")):
+            os.remove(old)
+        for f in os.listdir(tmp):
+            os.replace(os.path.join(tmp, f), os.path.join(args.out, f))
+
     with open(os.path.join(HERE, "RELEASE"), "w") as f:
         f.write(args.release + "\n")
     print(f"{len(written)} vectors from {args.release} written to {args.out}")
-
 
 if __name__ == "__main__":
     main()

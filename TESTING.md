@@ -22,13 +22,13 @@ OK    mainnet_fusaka_24758573
 FAIL  zkevm.ecrecover.precompiles__state-...
       expected: 5e1f...0101000000000000000100
       got:      5e1f...0001000000000000000100
----- 23 passed, 1 failed
+---- 25 passed, 1 failed
 failed:
   zkevm.ecrecover.precompiles__state-...
 ```
 
-The exit status is non-zero if any vector fails. The runner's own output is shown only for
-failures.
+The exit status is non-zero if any vector fails, or if `VECTORS` is empty. The runner's own
+output is shown only for failures.
 
 Pico has two more test targets:
 
@@ -59,7 +59,8 @@ The vectors fall into two groups:
   real blocks don't:
   - every precompile a zkVM accelerates (ecrecover, sha256, ripemd, modexp, blake2, BN254
     add/mul/pairing, BLS12-381, KZG point evaluation, P-256)
-  - storage and trie shapes
+  - storage and trie shapes, including all three blocks of a trie deletion that collapses a
+    branch into a leaf
   - invalid blocks, which the guest must report as `valid = false` instead of trapping
 
 The vectors are checked in, so CI never downloads fixtures.
@@ -95,6 +96,11 @@ vectors/run.sh "<runner> -e <elf>" vector.bin...
   (`-i a.bin -o a.out -i b.bin -o b.out ...`). OpenVM uses this because compiling the guest costs
   about 10 s per process, far more than executing a small block. The runner must keep going past
   a failing input and exit non-zero at the end; a vector that produced no output counts as failed.
+  If the runner exits 0 but some outputs are missing, it probably predates batching and only ran
+  the last input.
+- Each target's `make runner` always calls `cargo build`, and cargo's incremental build decides
+  whether the runner is stale. Don't make the runner a file target: an old binary, for example
+  one restored from a CI cache, would then survive changes to its source.
 
 A new target only needs a runner that accepts `-e`, `-i` and `-o` and writes the guest's public
 output. Its `make test` can then call `run.sh`.
@@ -112,12 +118,14 @@ python3 vectors/zkevm/fetch.py --tarball fixtures_zkevm.tar.gz --release tests-z
 
 The script streams the archive (about 600 MB), so nothing needs to be unpacked first. It then:
 
-1. Deletes every existing `vectors/zkevm.*` file.
-2. Writes the blocks that [`vectors/zkevm/subset.txt`](vectors/zkevm/subset.txt) selects.
-3. Updates `RELEASE`.
+1. Writes the blocks that [`vectors/zkevm/subset.txt`](vectors/zkevm/subset.txt) selects into
+   a scratch directory.
+2. Checks that every subset line matched at least one block and that no two lines produce the
+   same vector.
+3. Only then replaces every existing `vectors/zkevm.*` file and updates `RELEASE`.
 
-It exits with an error if any line in `subset.txt` matches nothing, which usually means a
-fixture was renamed upstream.
+If a check fails, for example because a fixture was renamed upstream or the tarball is
+corrupt, `vectors/` and `RELEASE` are left unchanged.
 
 Each `.expected.hex` comes from the fixture's `statelessOutputBytes`, never from a guest. This
 makes the vectors an independent oracle.
@@ -140,9 +148,15 @@ finish in about a minute per zkVM.
 
 ## Blessing expected output
 
-`make bless` rewrites the `.expected.hex` files from the current guest's output. Use it only
-for vectors with no independent source of truth, i.e. the real blocks. Check the diff
-carefully: blessing a broken guest makes its bug the expected output. Never bless the `zkevm.*`
+`make bless` rewrites the `.expected.hex` files of `$(VECTORS)` (every vector by default) from
+the current guest's output. Use it only for vectors with no independent source of truth, i.e.
+the real blocks:
+
+```sh
+make bless VECTORS="../vectors/mainnet_*.bin ../vectors/sepolia_*.bin"
+```
+
+ Check the diff carefully: blessing a broken guest makes its bug the expected output. Never bless the `zkevm.*`
 vectors; regenerate them with `fetch.py` instead.
 
 ## CI

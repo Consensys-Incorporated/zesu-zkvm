@@ -15,6 +15,10 @@
 set -u
 cmd=$1
 shift
+if [ $# -eq 0 ]; then
+    echo "run.sh: no vectors given (empty VECTORS?)" >&2
+    exit 2
+fi
 len=${SSZ_OUTPUT_LEN:-43}
 batch=${RUNNER_BATCH:-0}
 log=$(mktemp)
@@ -28,10 +32,13 @@ if [ "$batch" = 1 ]; then
         args="$args -i $bin -o $outs/$n"
     done
     # shellcheck disable=SC2086 # word splitting of the runner command and vector paths is intended
-    $cmd $args > "$log" 2>&1 || {
+    if $cmd $args > "$log" 2>&1; then
+        runner_ok=1
+    else
+        runner_ok=0
         echo "runner reported failures:"
         sed 's/^/      /' "$log" | tail -40
-    }
+    fi
 fi
 
 pass=0 fail=0 info=0 failed="" n=0
@@ -42,7 +49,11 @@ for bin in "$@"; do
     out=$outs/$n
     if [ "$batch" = 1 ]; then
         if [ ! -s "$out" ]; then
-            echo "FAIL  $name: no output (see runner log above)"
+            if [ "$runner_ok" = 1 ]; then
+                echo "FAIL  $name: no output, but the runner exited 0 (does it support batching?)"
+            else
+                echo "FAIL  $name: no output (see runner log above)"
+            fi
             fail=$((fail + 1)) failed="$failed $name"
             continue
         fi
