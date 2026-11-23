@@ -13,7 +13,7 @@ name: Release
 # Targets built:
 #   zisk    — ZisK v1.4.0-alpha; links zesu (build for rv64im+Zba+Zbb+Zbs) + zisk-wrapped.o (host + libziskos_staticlib merged)
 #   sp1     — SP1 v6.9.0; links zesu (built for rv64im, strict alignment) + sp1-host.o + SP1's libzkevm.a
-#   pico    — Pico 3.1.0 (brevis-network/pico 613d6ae, the rev ere v0.20.0 pins); links zesu
+#   pico    — Pico 3.1.5 (brevis-network/pico v3.1.5, the release ere v0.20.2 pins); links zesu
 #             (built for rv64im, strict alignment) + pico-host.o
 #   openvm  — OpenVM rv64im; links zesu.rv64im.o + openvm-host.o
 #   linea   — Linea rv64im; links zesu.rv64im.o + linea-host.o; stripped ELF
@@ -51,10 +51,10 @@ on:
 env:
   ZISK_VERSION: "1.4.0-alpha"
   SP1_VERSION: "6.9.0"
-  # Pico's version as ere reports it (zkVMKind::Pico.sdk_version(): the pico-verifier crate
-  # version in ere's Cargo.lock). ere v0.20.0 pins brevis-network/pico at 613d6ae, whose
-  # crates are 3.1.0; pico/runner/Cargo.toml pins the same rev.
-  PICO_VERSION: "3.1.0"
+  # Pico's release tag, as ere-guests registers Pico guests (zkvm_version "v3.1.5"). ere v0.20.2
+  # pins brevis-network/pico at v3.1.5, whose crates are 3.1.1 (what ere's sdk_version() reports);
+  # pico/runner/Cargo.toml pins the same release.
+  PICO_VERSION: "3.1.5"
   OPENVM_VERSION: "ALPHA"
   LINEA_VERSION: "ALPHA"
   # ere (https://github.com/eth-act/ere) revision whose ere-server-* images we
@@ -62,10 +62,10 @@ env:
   # ere-platform-core (see its Cargo.lock) — bump when they bump. keygen
   # transpiles the ELF with ere's own zkVM, so ere's pins must match
   # ZISK_VERSION, SP1_VERSION, PICO_VERSION and openvm/runner's OpenVM revision too.
-  # 0.20.0: ziskos 1.4.0-alpha, SP1 6.9.0, Pico 3.1.0 (613d6ae), OpenVM v2.1.0-preview.
+  # 0.20.2: ziskos 1.4.0-alpha, SP1 6.9.0, Pico 3.1.5, OpenVM v2.1.0-preview.
   # NOTE: ere-guests main may still pin an older ere, so this may be ahead of the consumer.
-  # Note the ghcr tag has no "v" prefix, unlike ere's git tag (v0.20.0).
-  ERE_TAG: "0.20.0"
+  # Note the ghcr tag has no "v" prefix, unlike ere's git tag (v0.20.2).
+  ERE_TAG: "0.20.2"
 
 permissions: {} # lock everything by default (least-privilege)
 
@@ -295,7 +295,7 @@ jobs:
           df -h /
 
       # The .vk is pico-verifier's v2 VK bundle (ere's PicoProgramVk): the program's identity
-      # under the whitelist shipped with Pico 613d6ae.
+      # under the whitelist shipped with Pico v3.1.5.
       - name: Generate program VK
         run: |
           docker pull "ghcr.io/eth-act/ere/ere-server-pico:${{ env.ERE_TAG }}"

@@ -11,12 +11,12 @@ path = "src/main.rs"
 [workspace]
 
 [dependencies]
-# Pinned to the Pico revision eth-act/ere v0.20.0 uses (613d6ae, crate version 3.1.0; see
+# Pinned to the Pico release eth-act/ere v0.20.2 uses (v3.1.5; see
 # pico-prover/pico-sdk in ere's Cargo.toml). Keep in sync with ere: the release workflow
-# generates the VK with ere-server-pico, which embeds this revision. Pico builds with the
+# generates the VK with ere-server-pico, which embeds this release. Pico builds with the
 # nightly named in rust-toolchain; cargo fetches the git checkout itself.
-pico-vm = { git = "https://github.com/brevis-network/pico", rev = "613d6aeb64350d73faf24c17e2e3e3cee5b763bc", features = ["mmap-memory"] }
-# The full-chain prover ere's PicoProver wraps; used for -p.
-pico-prover = { git = "https://github.com/brevis-network/pico", rev = "613d6aeb64350d73faf24c17e2e3e3cee5b763bc", features = ["mmap-memory"] }
+# pico-vm only for its logger; mmap-memory keeps emulation RSS low.
+pico-vm = { git = "https://github.com/brevis-network/pico", tag = "v3.1.5", features = ["mmap-memory"] }
+# The prover API ere's PicoProver wraps: execute, chunked execute (-X) and prove (-p).
+pico-prover = { git = "https://github.com/brevis-network/pico", tag = "v3.1.5", features = ["mmap-memory"] }
 eyre = "0.6"
-elf = "0.7"

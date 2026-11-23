@@ -12,7 +12,7 @@ zkVM target.
 | [`sp1/`](sp1/) | [SP1 6.9.0](https://github.com/succinctlabs/sp1) | Working (execution; see its README) |
 | [`openvm/`](openvm/) | [openvm](https://github.com/openvm-org/openvm) | Working (emulation only, no proofs) |
 | [`linea/`](linea/) | [Linea zkVM](https://github.com/Consensys/linea-zkvm) | Working |
-| [`pico/`](pico/) | [Pico 3.1.0](https://github.com/brevis-network/pico) (`613d6ae`) | Execution works; see its README |
+| [`pico/`](pico/) | [Pico 3.1.5](https://github.com/brevis-network/pico) (`v3.1.5`) | Execution works; see its README |
 
 The zkVM-independent crypto (pure-Zig primitives, curve code generic over a field backend, and
 their unit tests) lives in [`shared/`](shared/) and is used by the targets above.
