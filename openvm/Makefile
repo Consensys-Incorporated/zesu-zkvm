@@ -42,6 +42,9 @@ OPENVM_OBJCOPY    = $(shell rustc +$(OPENVM_TOOLCHAIN) --print sysroot)/lib/rust
 # SSZ_OUTPUT_LEN in openvm/runner/src/main.rs.
 SSZ_OUTPUT_LEN ?= 43
 
+# Vectors that `make test` and `make bless` run (override with a subset).
+VECTORS ?= ../vectors/*.bin
+
 .PHONY: all runner pairing-lib run test bless clean clean-runner
 
 all: runner pairing-lib
@@ -61,9 +64,10 @@ pairing-lib:
 	    --localize-symbol=memcmp --localize-symbol=bcmp \
 	    $(PAIRING_BUILT) $(PAIRING_LIB)
 
-runner: $(RUNNER)
-
-$(RUNNER):
+# Phony, so cargo's incremental build decides when the runner is stale: a file target with no
+# prerequisites would keep using an old binary (e.g. one restored from a CI cache) after its
+# source changes.
+runner:
 	@command -v $(CARGO) >/dev/null 2>&1 || \
 	    { echo "ERROR: cargo not found. Install Rust: https://rustup.rs"; exit 1; }
 	@# Drop make's MAKEFLAGS: GNU make >= 4.4 appends command-line variables
@@ -77,36 +81,11 @@ run: all
 
 test: runner
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
-	@fail=0; \
-	for bin in ../vectors/*.bin; do \
-	    name=$$(basename $$bin .bin); \
-	    expected=../vectors/$$name.expected.hex; \
-	    out=$$(mktemp); \
-	    echo "==> $$name"; \
-	    if ! $(RUNNER) -e $(ELF) -i $$bin -o $$out; then \
-	        echo "  FAIL: runner non-zero exit"; \
-	        fail=1; \
-	    elif [ -f $$expected ]; then \
-	        got=$$(xxd -p -l $(SSZ_OUTPUT_LEN) $$out | tr -d '\n'); \
-	        want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
-	        if [ "$$got" = "$$want" ]; then \
-	            echo "  OK"; \
-	        else \
-	            echo "  FAIL"; \
-	            echo "    expected: $$want"; \
-	            echo "    got:      $$got"; \
-	            fail=1; \
-	        fi; \
-	    else \
-	        echo "  (no expected.hex — informational)"; \
-	    fi; \
-	    rm -f $$out; \
-	done; \
-	exit $$fail
+	@RUNNER_BATCH=1 SSZ_OUTPUT_LEN=$(SSZ_OUTPUT_LEN) ../vectors/run.sh "$(RUNNER) -e $(ELF)" $(VECTORS)
 
 bless: runner
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
-	@for bin in ../vectors/*.bin; do \
+	@for bin in $(VECTORS); do \
 	    name=$$(basename $$bin .bin); \
 	    expected=../vectors/$$name.expected.hex; \
 	    out=$$(mktemp); \

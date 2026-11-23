@@ -72,32 +72,7 @@ run: all runner
 	$(RUNNER) -e $(ELF) -i $(INPUT)
 
 test: all runner
-	@fail=0; \
-	for bin in $(VECTORS); do \
-	    name=$$(basename $$bin .bin); \
-	    expected=../vectors/$$name.expected.hex; \
-	    out=$$(mktemp); \
-	    echo "==> $$name"; \
-	    if ! $(RUNNER) -e $(ELF) -i $$bin -o $$out; then \
-	        echo "  FAIL: runner non-zero exit"; \
-	        fail=1; \
-	    elif [ -f $$expected ]; then \
-	        got=$$(xxd -p -l $(SSZ_OUTPUT_LEN) $$out | tr -d '\n'); \
-	        want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
-	        if [ "$$got" = "$$want" ]; then \
-	            echo "  OK"; \
-	        else \
-	            echo "  FAIL"; \
-	            echo "    expected: $$want"; \
-	            echo "    got:      $$got"; \
-	            fail=1; \
-	        fi; \
-	    else \
-	        echo "  (no expected.hex — informational)"; \
-	    fi; \
-	    rm -f $$out; \
-	done; \
-	exit $$fail
+	@SSZ_OUTPUT_LEN=$(SSZ_OUTPUT_LEN) ../vectors/run.sh "$(RUNNER) -e $(ELF)" $(VECTORS)
 
 bless: all runner
 	@for bin in $(VECTORS); do \
