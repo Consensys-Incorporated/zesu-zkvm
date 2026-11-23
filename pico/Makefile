@@ -61,7 +61,7 @@ unit:
 # Run the crypto modules on Pico's VM: syscall path vs software path + known answers.
 selftest: runner
 	$(ZIG) build selftest -Doptimize=ReleaseFast $(ZIG_FLAGS)
-	@out=$$(mktemp); : > $$out.in; \
+	@out=$$(mktemp); printf '\0\0\0\0\0\0\0\0' > $$out.in; \
 	$(RUNNER) -e zig-out/bin/zesu-pico-selftest -i $$out.in -o $$out; \
 	got=$$(xxd -p $$out | tr -d '\n'); rm -f $$out $$out.in; \
 	if [ "$$got" = "01" ]; then echo "selftest: OK"; else echo "selftest: FAIL (public values: $$got)"; exit 1; fi
