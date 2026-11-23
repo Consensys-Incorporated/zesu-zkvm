@@ -26,33 +26,43 @@ const SSZ_OUTPUT_LEN: usize = 43;
 /// ere's NUM_PUBLIC_VALUES_BYTES (ere-verifier-openvm).
 const NUM_PUBLIC_VALUES_BYTES: usize = 256;
 
+const USAGE: &str = "Usage: {} -e <elf_path> -i <input_file> [-o <output_file>] [-i <input_file> -o <output_file>]... [-X]
+
+  Several -i/-o pairs run every input against one compiled program: compiling the guest is most
+  of a small block's runtime, so batching keeps a vector suite fast. A failing input is reported
+  on stderr and the rest still run; the exit status is non-zero if any failed. -X (instruction
+  metering) takes a single input.";
+
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
+    let usage = || -> ! {
+        eprintln!("{}", USAGE.replace("{}", &args[0]));
+        process::exit(1);
+    };
 
     let mut elf_path: Option<PathBuf> = None;
-    let mut input_path: Option<PathBuf> = None;
-    let mut output_path: Option<PathBuf> = None;
+    // Each -i starts a job; a following -o names its output (stdout if none).
+    let mut jobs: Vec<(PathBuf, Option<PathBuf>)> = Vec::new();
     let mut metered = false;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
             "-X" => { metered = true; }
-            "-e" if i + 1 < args.len() => { elf_path   = Some(PathBuf::from(&args[i + 1])); i += 1; }
-            "-i" if i + 1 < args.len() => { input_path = Some(PathBuf::from(&args[i + 1])); i += 1; }
-            "-o" if i + 1 < args.len() => { output_path = Some(PathBuf::from(&args[i + 1])); i += 1; }
+            "-e" if i + 1 < args.len() => { elf_path = Some(PathBuf::from(&args[i + 1])); i += 1; }
+            "-i" if i + 1 < args.len() => { jobs.push((PathBuf::from(&args[i + 1]), None)); i += 1; }
+            "-o" if i + 1 < args.len() => {
+                let Some(job) = jobs.last_mut().filter(|j| j.1.is_none()) else { usage() };
+                job.1 = Some(PathBuf::from(&args[i + 1]));
+                i += 1;
+            }
             other => { eprintln!("unknown argument: {}", other); process::exit(1); }
         }
         i += 1;
     }
-
-    let elf_path = elf_path.unwrap_or_else(|| {
-        eprintln!("Usage: {} -e <elf_path> -i <input_file> [-X] [-o <output_file>]", args[0]);
-        process::exit(1);
-    });
-    let input_path = input_path.unwrap_or_else(|| {
-        eprintln!("Usage: {} -e <elf_path> -i <input_file> [-X] [-o <output_file>]", args[0]);
-        process::exit(1);
-    });
+    let Some(elf_path) = elf_path else { usage() };
+    if jobs.is_empty() || (jobs.len() > 1 && (metered || jobs.iter().any(|j| j.1.is_none()))) {
+        usage();
+    }
 
     let vm_config = sdk_vm_config();
 
@@ -60,33 +70,59 @@ fn main() -> Result<()> {
         .wrap_err_with(|| format!("reading {}", elf_path.display()))?;
     let exe = transpile(&vm_config, &elf_bytes)?;
 
-    let input_bytes = fs::read(&input_path)
-        .wrap_err_with(|| format!("reading {}", input_path.display()))?;
-    let stdin = stdin_from_input_file(&input_bytes)?;
-
-    let (public_values, instret) = if metered {
-        execute_metered(vm_config, &exe, stdin)?
-    } else {
-        let executor: VmExecutor<F, SdkVmConfig> = VmExecutor::new(vm_config)
-            .map_err(|e| eyre!("build executor: {e}"))?;
-        let state = executor
-            .instance(&exe)
-            .map_err(|e| eyre!("build instance: {e}"))?
-            .execute(stdin)
-            .map_err(|e| eyre!("execute: {e}"))?;
-        (extract_public_values(NUM_PUBLIC_VALUES_BYTES, &state.memory.memory), 0u64)
-    };
-
-    // -X: emit a COST DISTRIBUTION table on stderr for bench tool metrics scraping.
-    // INSTRUCTIONS is the retired instruction count — a deterministic complexity metric
-    // unaffected by host CPU load or parallelism. TOTAL mirrors it for parsers that
-    // only check TOTAL.
     if metered {
+        let (input_path, output_path) = &jobs[0];
+        let (public_values, instret) = execute_metered(vm_config, &exe, read_stdin(input_path)?)?;
+        // -X: emit a COST DISTRIBUTION table on stderr for bench tool metrics scraping.
+        // INSTRUCTIONS is the retired instruction count — a deterministic complexity metric
+        // unaffected by host CPU load or parallelism. TOTAL mirrors it for parsers that
+        // only check TOTAL.
         eprintln!("COST DISTRIBUTION");
         eprintln!("INSTRUCTIONS {:>24} 100.00%", instret);
         eprintln!("TOTAL        {:>24} 100.00%", instret);
+        return write_output(&public_values, output_path.as_ref());
     }
 
+    let executor: VmExecutor<F, SdkVmConfig> = VmExecutor::new(vm_config)
+        .map_err(|e| eyre!("build executor: {e}"))?;
+    let instance = executor
+        .instance(&exe)
+        .map_err(|e| eyre!("build instance: {e}"))?;
+
+    if let [(input_path, output_path)] = jobs.as_slice() {
+        let state = instance
+            .execute(read_stdin(input_path)?)
+            .map_err(|e| eyre!("execute: {e}"))?;
+        let public_values = extract_public_values(NUM_PUBLIC_VALUES_BYTES, &state.memory.memory);
+        return write_output(&public_values, output_path.as_ref());
+    }
+
+    let mut failed = 0;
+    for (input_path, output_path) in &jobs {
+        let result = read_stdin(input_path).and_then(|stdin| {
+            let state = instance.execute(stdin).map_err(|e| eyre!("execute: {e}"))?;
+            let public_values = extract_public_values(NUM_PUBLIC_VALUES_BYTES, &state.memory.memory);
+            write_output(&public_values, output_path.as_ref())
+        });
+        if let Err(e) = result {
+            eprintln!("{}: {e:#}", input_path.display());
+            failed += 1;
+        }
+    }
+    if failed > 0 {
+        return Err(eyre!("{failed} of {} inputs failed", jobs.len()));
+    }
+    Ok(())
+}
+
+fn read_stdin(input_path: &PathBuf) -> Result<StdIn> {
+    let input_bytes = fs::read(input_path)
+        .wrap_err_with(|| format!("reading {}", input_path.display()))?;
+    stdin_from_input_file(&input_bytes)
+}
+
+/// Writes the `SszStatelessValidationResult` slice of the public values to `path`, or stdout.
+fn write_output(public_values: &[u8], path: Option<&PathBuf>) -> Result<()> {
     if public_values.len() < SSZ_OUTPUT_LEN {
         return Err(eyre!(
             "public values too short: {} bytes, expected >= {}",
@@ -95,18 +131,10 @@ fn main() -> Result<()> {
         ));
     }
     let output = &public_values[..SSZ_OUTPUT_LEN];
-
-    match output_path {
-        Some(ref path) => {
-            fs::write(path, output)
-                .wrap_err_with(|| format!("writing {}", path.display()))?;
-        }
-        None => {
-            std::io::stdout().write_all(output)?;
-        }
+    match path {
+        Some(path) => fs::write(path, output).wrap_err_with(|| format!("writing {}", path.display())),
+        None => Ok(std::io::stdout().write_all(output)?),
     }
-
-    Ok(())
 }
 
 /// The VM config eth-act/ere executes every OpenVM guest with

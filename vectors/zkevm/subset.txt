@@ -1,0 +1,43 @@
+# tests-zkevm blocks checked into ../ as zkevm.*.bin / zkevm.*.expected.hex.
+#
+# Every target's `make test` runs everything in ../, so these run on every zkVM in CI alongside
+# the full mainnet/sepolia blocks. They are fed to the guest as raw SSZ, as ere does, and cover
+# what the two real blocks do not: each precompile a zkVM accelerates, and blocks the guest must
+# report as invalid instead of trapping.
+#
+# Regenerate (only when moving to a new fixture release) with fetch.py; see its docstring.
+#
+# Line format:   <glob>  [count]  [valid|invalid]  [pick=S]
+#   glob     fnmatch pattern for fixture JSON paths, relative to blockchain_tests/for_amsterdam/
+#   count    blocks to take from each matching file, spread evenly across its sorted test cases
+#            (default 1; "all" takes every block)
+#   filter   only blocks whose expected output has valid = true / false
+#   pick=S   only test cases whose id contains S (choose a non-trivial input over an empty one)
+
+# ── Precompiles ──
+frontier/precompiles/ecrecover/precompiles.json
+frontier/precompiles/ripemd/precompiles.json                                     1 pick=oog_False-ripemd_quick_brown_fox
+ported_static/stPreCompiledContracts2/call_sha256_1/call_sha256_1.json
+byzantium/eip198_modexp_precompile/modexp/modexp.json                            1 pick=EIP-198-case1
+byzantium/eip196_ec_add_mul/ecadd/valid.json                                     1 pick=neg_sample_plus_generator
+byzantium/eip196_ec_add_mul/ecmul/valid.json                                     1 pick=generator_times_group_order_minus_one-
+byzantium/eip197_ec_pairing/ecpairing/valid.json                                 1 pick=three_point_match_1
+istanbul/eip152_blake2/blake2/blake2b.json
+cancun/eip4844_blobs/point_evaluation_precompile/valid_inputs.json
+prague/eip2537_bls_12_381_precompiles/bls12_g1msm/valid.json                     1 pick=(2g1+2p1)
+prague/eip2537_bls_12_381_precompiles/bls12_g2msm/valid.json                     1 pick=(2g2+2p2)
+prague/eip2537_bls_12_381_precompiles/bls12_pairing/valid.json
+prague/eip2537_bls_12_381_precompiles/bls12_map_fp2_to_g2/valid.json             1 pick=bls_g2map_616263
+osaka/eip7951_p256verify_precompiles/p256verify/valid.json                       1 pick=hash_max
+
+# ── State transition and trie shapes ──
+ported_static/stSStoreTest/sstore_0to_xto0/sstore_0to_xto0.json
+prague/eip7702_set_code_tx/set_code_txs/set_code_to_sstore_then_sload.json
+cancun/eip6780_selfdestruct/selfdestruct_finalization/selfdestruct_clears_nonce_and_storage.json
+mpt/storage_trie_structure/delete_from_block_built_trie.json
+
+# ── Invalid blocks: the guest must report valid = false ──
+london/validation/header/invalid_header.json                                      1  invalid
+frontier/validation/transaction/unrecoverable_signature.json                      1  invalid
+amsterdam/eip7928_block_level_access_lists/block_access_lists_invalid/bal_invalid_omitted_slot_change_at_index.json 1 invalid
+amsterdam/eip8025_optional_proofs/stateless_input_versioned_hashes/stateless_input_versioned_hashes.json 1 invalid

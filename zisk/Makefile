@@ -12,6 +12,7 @@
 #   make lib/libziskos_staticlib.a — build the Zisk OS static library (ZisK 1.4.0-alpha)
 #   make                           — build lib/libziskos_staticlib.a then the Zig guest ELF
 #   make run INPUT=<file>          — build and run under ziskemu
+#   make test                      — run ../vectors/*.bin under ziskemu (VECTORS=<files> for a subset)
 #   make clean                     — remove build artifacts (preserves lib/libziskos_staticlib.a)
 #   make clean-lib                 — also remove lib/libziskos_staticlib.a (forces a rebuild)
 #
@@ -53,6 +54,9 @@ ISA       ?=
 # SSZ_OUTPUT_LEN in openvm/runner/src/main.rs.
 SSZ_OUTPUT_LEN ?= 43
 
+# Vectors that `make test` and `make bless` run (override with a subset).
+VECTORS ?= ../vectors/*.bin
+
 ZIG_FLAGS  = $(if $(ZESU_OBJ),-Dzesu_obj=$(ZESU_OBJ)) $(if $(ZESU_SOURCE),--fork=$(ZESU_SOURCE)) $(if $(ISA),-Disa=$(ISA))
 
 .PHONY: all run test bless clean clean-lib
@@ -89,32 +93,7 @@ endif
 
 test: $(LIB_OUT)
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
-	@fail=0; \
-	for bin in ../vectors/*.bin; do \
-	    name=$$(basename $$bin .bin); \
-	    expected=../vectors/$$name.expected.hex; \
-	    out=$$(mktemp); \
-	    echo "==> $$name"; \
-	    if ! $(ZISKEMU) -e zig-out/bin/zesu-zisk -i $$bin -o $$out; then \
-	        echo "  FAIL: ziskemu non-zero exit"; \
-	        fail=1; \
-	    elif [ -f $$expected ]; then \
-	        got=$$(xxd -p -l $(SSZ_OUTPUT_LEN) $$out | tr -d '\n'); \
-	        want=$$(tr -d '[:space:]' < $$expected | sed 's/^0x//' | tr 'A-F' 'a-f'); \
-	        if [ "$$got" = "$$want" ]; then \
-	            echo "  OK"; \
-	        else \
-	            echo "  FAIL"; \
-	            echo "    expected: $$want"; \
-	            echo "    got:      $$got"; \
-	            fail=1; \
-	        fi; \
-	    else \
-	        echo "  (no expected.hex — informational)"; \
-	    fi; \
-	    rm -f $$out; \
-	done; \
-	exit $$fail
+	@SSZ_OUTPUT_LEN=$(SSZ_OUTPUT_LEN) ../vectors/run.sh "$(ZISKEMU) -e zig-out/bin/zesu-zisk" $(VECTORS)
 
 bless: $(LIB_OUT)
 	$(ZIG) build -Doptimize=ReleaseFast $(ZIG_FLAGS)
