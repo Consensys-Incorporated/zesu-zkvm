@@ -18,9 +18,10 @@ pub fn printStr(s: []const u8) void {
 
 /// Read the private input data.
 ///
-/// Input file format (.bin test vectors):
-///   [0..8]   payload_len (u64 LE) — byte count of the SSZ payload
-///   [8..]    SSZ payload (padded to 8-byte boundary in the file)
+/// The input is the raw SSZ payload as the single stdin entry — what eth-act/ere's
+/// PicoProver writes (`Stdin::write_bytes(input.stdin())`). There is no length header:
+/// the .bin test vectors' 8-byte `payload_len` prefix is stripped by the local runner,
+/// as the SP1 and OpenVM runners do.
 ///
 /// HINT_READ requires memory that is neither in the ELF image nor previously
 /// touched. Pico registers every .bss word in the program image, so a static
@@ -32,9 +33,6 @@ pub fn printStr(s: []const u8) void {
 /// (below `heap_top`), alongside everything zesu allocates while processing it.
 pub fn read_input(heap_pos: *usize, heap_top: usize, buf_ptr: *[*]const u8, buf_size: *usize) void {
     const total_len = sys.ecall(sys.HINT_LEN, 0, 0, 0);
-    if (total_len < 8) {
-        @panic("input shorter than the 8-byte header");
-    }
 
     // 8-byte aligned destination; capacity rounded up to a whole dword.
     const base = std.mem.alignForward(usize, heap_pos.*, 8);
@@ -45,13 +43,8 @@ pub fn read_input(heap_pos: *usize, heap_top: usize, buf_ptr: *[*]const u8, buf_
     heap_pos.* = base + capacity;
     _ = sys.ecall(sys.HINT_READ, base, total_len, 0);
 
-    const payload_len = std.mem.littleToNative(u64, @as(*const u64, @ptrFromInt(base)).*);
-    if (payload_len > total_len - 8) {
-        @panic("file header payload_len exceeds total_len");
-    }
-
-    buf_ptr.* = @ptrFromInt(base + 8);
-    buf_size.* = @intCast(payload_len);
+    buf_ptr.* = @ptrFromInt(base);
+    buf_size.* = total_len;
 }
 
 /// Append the SSZ output bytes to the public-values stream (fd 3).

@@ -7,7 +7,8 @@ use pico_vm::machine::logger::setup_logger;
 const USAGE: &str = "Usage: {} -e <elf_path> -i <input_file> [-X] [-p] [-o <output_file>]
 
   -e  guest ELF
-  -i  input file, fed to the guest as a single stdin entry
+  -i  input file (8-byte length header + SSZ payload); the payload is fed to the guest as a
+      single stdin entry
   -X  execute as proving does (chunked) and print stats: cycles, throughput, chunks,
       misaligned accesses and per-precompile call counts
   -p  prove the full recursion chain in whitelist mode, as ere's ere-server-pico does; the prover
@@ -44,10 +45,22 @@ fn main() -> Result<()> {
     let elf = fs::read(&elf_path).wrap_err_with(|| format!("reading {}", elf_path.display()))?;
     let input = fs::read(&input_path).wrap_err_with(|| format!("reading {}", input_path.display()))?;
 
-    // The whole input file is one stdin entry; the guest reads it with HINT_LEN + HINT_READ.
+    // The test vectors use ZisK's input format: an 8-byte little-endian payload length, the SSZ
+    // payload, then padding to a multiple of 8. ere hands the guest just the payload, so strip the
+    // header and padding here. The payload is one stdin entry; the guest reads it with
+    // HINT_LEN + HINT_READ.
+    eyre::ensure!(input.len() >= 8, "input shorter than the 8-byte length header");
+    let payload_len = u64::from_le_bytes(input[..8].try_into().unwrap()) as usize;
+    eyre::ensure!(
+        payload_len <= input.len() - 8,
+        "header payload length {} exceeds the {} bytes that follow it",
+        payload_len,
+        input.len() - 8
+    );
+    let payload = &input[8..8 + payload_len];
     let stdin = || {
         let mut s = Stdin::new();
-        s.write_bytes(&input);
+        s.write_bytes(payload);
         s
     };
     // Same builder ere's PicoProver uses (crates/prover/pico in eth-act/ere): whitelist mode under
