@@ -65,6 +65,12 @@ zig build -Doptimize=ReleaseFast
 
 Zig's build caching means subsequent builds only recompile zesu when its sources change.
 
+## Testing
+
+Each target's `make test` runs the shared vectors in [`vectors/`](vectors/) through that
+zkVM's emulator and checks the output. See [TESTING.md](TESTING.md) for the vector format,
+the runner harness and how to refresh the vectors from `tests-zkevm`.
+
 ## Repository layout
 
 ```
@@ -74,6 +80,8 @@ zesu-zkvm/
   pico/     — Pico zkVM guest
   openvm/   — OpenVM guest (Zig ELF)
   linea/    — Linea zkVM guest (Zig ELF, stripped)
+  shared/   — zkVM-independent crypto and its unit tests
+  vectors/  — test vectors, the shared runner harness and the tests-zkevm refresh tool
 ```
 
 Each target directory contains its own `build.zig`, linker script, and `README.md`.
