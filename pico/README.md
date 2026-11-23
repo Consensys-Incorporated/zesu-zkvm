@@ -2,9 +2,9 @@
 
 Pico (Brevis) zkVM guest for zesu — compiles the Ethereum stateless block executor to a
 `riscv64-freestanding-none` ELF that runs inside
-[Pico](https://github.com/brevis-network/pico) 3.1.0, at `613d6ae` — the revision
-[eth-act/ere](https://github.com/eth-act/ere) v0.20.0 pins (`pico-prover`/`pico-sdk` in its
-`Cargo.toml`). The runner pins the same revision, so a pass here is a pass under ere.
+[Pico](https://github.com/brevis-network/pico) 3.1.5 — the release
+[eth-act/ere](https://github.com/eth-act/ere) v0.20.2 pins (`pico-prover`/`pico-sdk` in its
+`Cargo.toml`). The runner pins the same release, so a pass here is a pass under ere.
 
 Pico's VM executes **rv64im** (ELF64, `EM_RISCV`); it has no Zbb/Zbs and no
 compressed instructions.
@@ -25,11 +25,11 @@ compressed instructions.
 
 `make test` executes each vector on Pico's VM and compares the guest's output with the expected
 output: the SSZ root of the block's new-payload request, plus `valid`, chain id and schema id.
-Both vectors match in full (Pico 3.1.0: `sepolia_amsterdam_11856500`: 452M cycles;
-`mainnet_fusaka_24758573`: 371M cycles, which includes one KZG point evaluation). So RISC-V
+Both vectors match in full (Pico 3.1.5: `sepolia_amsterdam_11856500`: 447M cycles;
+`mainnet_fusaka_24758573`: 349M cycles, which includes one KZG point evaluation). So RISC-V
 execution of zesu on Pico's VM reaches the correct result for full blocks. The release workflow
 publishes this ELF with its VK (`ere-server-pico keygen`, a whitelist-mode VK bundle) as
-`stateless-validator-zesu-pico-3.1.0.{elf,vk}`.
+`stateless-validator-zesu-pico-3.1.5.{elf,vk}`.
 
 ### Testing the crypto
 
@@ -190,21 +190,16 @@ make runner                       # Rust runner (pinned nightly via rust-toolcha
 make                              # guest ELF -> zig-out/bin/zesu-pico
 make test                         # execute all vectors and compare with expected output
 make run INPUT=../vectors/sepolia_amsterdam_11856500.bin     # execute, print execution stats
-make trace INPUT=../vectors/sepolia_amsterdam_11856500.bin   # execute, print stats + trace report
 make prove INPUT=../vectors/sepolia_amsterdam_11856500.bin   # also prove and verify (slow)
 ```
 
-`run`, `trace` and `prove` require `INPUT`. All of them build the guest and runner first. Set
+`run` and `prove` require `INPUT`. All of them build the guest and runner first. Set
 `RUST_LOG=info` to see the guest's `zkvm_log` output.
 
-- **`make run`** executes without recording a trace (the fast path) and prints the `-X` report:
-  cycles, throughput and per-syscall counts, like `ziskemu -X` but counts only, since Pico has no
-  per-category cost model.
-- **`make trace`** runs the emulator in trace mode and prints the `-X` report followed by a
-  trace report built from the prover events Pico records: chunk count, events per chip, the
-  instruction mix, and the top functions by cycles (each cpu event's PC attributed to the ELF's
-  symbols). It is 3-4x slower than `make run` (sepolia vector: ~60s vs 13s); records are
-  aggregated per chunk as they arrive.
+- **`make run`** emulates as proving does (chunked, no keygen) and prints the `-X` report: cycles,
+  throughput, chunks, misaligned accesses and per-precompile call counts, like `ziskemu -X` but
+  counts only, since Pico has no per-category cost model. Without `-X` the runner uses Pico's
+  pure execution (no chunks or records), as ere's `execute` does.
 - **`make prove`** proves the full recursion chain in whitelist mode, as ere-server-pico does
   (`pico-prover` verifies the proof before returning it); no stats are printed. It needs tens of
   GiB of memory.
@@ -214,14 +209,13 @@ The same modes are available from the build system and the runner directly:
 ```sh
 zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin             # execute
 zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin -- -X       # + stats
-zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin -- -T       # + trace
 zig build run -Doptimize=ReleaseFast -Dinput=../vectors/mainnet_fusaka_24758573.bin -Dprove     # prove
-runner/target/release/zesu-pico-runner -e zig-out/bin/zesu-pico -i <block.bin> [-X] [-T] [-p] [-o out]
+runner/target/release/zesu-pico-runner -e zig-out/bin/zesu-pico -i <block.bin> [-X] [-p] [-o out]
 ```
 
-Runner flags: `-X` execution stats, `-T` trace report (implies `-X`), `-p` prove, `-o` write the
+Runner flags: `-X` execution stats, `-p` prove, `-o` write the
 guest's public values to a file. Flags go after `--` for `zig build run`; `make` takes no runner
-flags, which is why `run`/`trace`/`prove` are separate targets. `zig build run` without
+flags, which is why `run`/`prove` are separate targets. `zig build run` without
 `-Dinput` fails with a message saying so.
 
 ## Next steps
