@@ -21,7 +21,7 @@ pub fn recoverSecp256k1(msg: *const [32]u8, sig: *const [64]u8, recid: u8, outpu
     const y = Secp256k1.recoverY(x, recid == 1) catch return false;
     const point_r = Secp256k1.fromAffineCoordinates(.{ .x = x, .y = y }) catch return false;
 
-    var wide: [64]u8 = .{0} ** 64;
+    var wide: [64]u8 = @splat(0);
     @memcpy(wide[32..], msg);
     const z = Scalar.fromBytes64(wide, .big);
 
@@ -43,7 +43,7 @@ fn verifyGeneric(comptime Curve: type, msg: *const [32]u8, sig: *const [64]u8, p
 
     const q = Curve.fromSerializedAffineCoordinates(pubkey[0..32].*, pubkey[32..64].*, .big) catch return false;
 
-    var wide: [64]u8 = .{0} ** 64;
+    var wide: [64]u8 = @splat(0);
     @memcpy(wide[32..], msg);
     const z = Scalar.fromBytes64(wide, .big);
 
@@ -52,7 +52,7 @@ fn verifyGeneric(comptime Curve: type, msg: *const [32]u8, sig: *const [64]u8, p
     const k2 = r.mul(w);
     const p = Curve.mulDoubleBasePublic(Curve.basePoint, k1.toBytes(.big), q, k2.toBytes(.big), .big) catch return false;
     // x(P) mod n == r
-    var xb: [64]u8 = .{0} ** 64;
+    var xb: [64]u8 = @splat(0);
     xb[32..].* = p.affineCoordinates().x.toBytes(.big);
     return Scalar.fromBytes64(xb, .big).equivalent(r);
 }

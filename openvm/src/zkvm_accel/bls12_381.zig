@@ -47,9 +47,9 @@ const FR_LE: Fr align(8) = .{
     0x48, 0x7d, 0x9d, 0x29, 0x53, 0xa7, 0xed, 0x73,
 };
 
-const ZERO_FQ: Fq align(8) = .{0} ** 48;
-const ONE_FQ: Fq align(8) = .{1} ++ (.{0} ** 47);
-const FOUR_FQ: Fq align(8) = .{4} ++ (.{0} ** 47); // G1 b = 4
+const ZERO_FQ: Fq align(8) = @splat(0);
+const ONE_FQ: Fq align(8) = [1]u8{1} ++ @as([47]u8, @splat(0));
+const FOUR_FQ: Fq align(8) = [1]u8{4} ++ @as([47]u8, @splat(0)); // G1 b = 4
 
 // G2 b coefficient: (4, 4) in Fp2 = [c0=4, c1=4]
 const B_FP2: Fp2 align(8) = FOUR_FQ ++ FOUR_FQ;
@@ -670,7 +670,7 @@ fn g2InSubgroup(p: *const [192]u8) bool {
 const mc = @import("zkvm_crypto").bls12_381_map_constants;
 
 const ONE_FP2: Fp2 align(8) = ONE_FQ ++ ZERO_FQ;
-const ZERO_FP2: Fp2 align(8) = .{0} ** 96;
+const ZERO_FP2: Fp2 align(8) = @splat(0);
 
 inline fn divFq(out: *Fq, a: *const Fq, b: *const Fq) void {
     asm volatile (".insn r 0x2b, 0, 51, %[rd], %[rs1], %[rs2]"
@@ -998,7 +998,7 @@ pub fn g1Add(p1: *const [96]u8, p2: *const [96]u8, result: *[96]u8) bool {
 /// EIP-2537 G1 MSM: pairs is a slice of (point:[96]u8, scalar:[32]u8).
 pub fn g1Msm(pairs: anytype, result: *[96]u8) bool {
     setupOnce();
-    var acc: [96]u8 align(8) = .{0} ** 96;
+    var acc: [96]u8 align(8) = @splat(0);
 
     for (pairs) |*pair| {
         const pt = &pair.point;
@@ -1055,7 +1055,7 @@ pub fn g2Add(p1: *const [192]u8, p2: *const [192]u8, result: *[192]u8) bool {
 /// EIP-2537 G2 MSM: pairs is a slice of (point:[192]u8, scalar:[32]u8).
 pub fn g2Msm(pairs: anytype, result: *[192]u8) bool {
     setupOnce();
-    var acc: [192]u8 align(8) = .{0} ** 192;
+    var acc: [192]u8 align(8) = @splat(0);
 
     for (pairs) |*pair| {
         const pt = &pair.point;
@@ -1097,7 +1097,7 @@ pub fn mapFpToG1(field_element: *const [48]u8, result: *[96]u8) bool {
     var iz: Fq align(8) = undefined;
     isoMapG1(&x, &y, &z, &ix, &iy, &iz);
 
-    var p: [96]u8 align(8) = .{0} ** 96;
+    var p: [96]u8 align(8) = @splat(0);
     if (!fqIsZero(&iz)) {
         divFq(p[0..48], &ix, &iz);
         divFq(p[48..96], &iy, &iz);
@@ -1129,7 +1129,7 @@ pub fn mapFp2ToG2(field_element: *const [96]u8, result: *[192]u8) bool {
     var iz: Fp2 align(8) = undefined;
     isoMapG2(&x, &y, &z, &ix, &iy, &iz);
 
-    var p: [192]u8 align(8) = .{0} ** 192;
+    var p: [192]u8 align(8) = @splat(0);
     if (!fp2IsZero(&iz)) {
         divFp2(p[0..96], &ix, &iz);
         divFp2(p[96..192], &iy, &iz);

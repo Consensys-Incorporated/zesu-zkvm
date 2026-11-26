@@ -134,7 +134,7 @@ pub fn Ecdsa(comptime FpB: type, comptime FnB: type, comptime Pts: type, comptim
                 return r;
             }
         };
-        const identity = Pt{ .xy = .{0} ** 8, .inf = true };
+        const identity = Pt{ .xy = @splat(0), .inf = true };
 
         fn dbl(a: Pt) Pt {
             if (a.inf or Fp.isZero(a.y())) return identity;
@@ -285,11 +285,11 @@ pub fn signStd(comptime Curve: type, d_be: [32]u8, k_be: [32]u8, msg: [32]u8) ?C
     if (d.isZero() or k.isZero()) return null;
     const rp = Curve.basePoint.mul(k_be, .big) catch return null;
     const ra = rp.affineCoordinates();
-    var wide: [64]u8 = .{0} ** 64;
+    var wide: [64]u8 = @splat(0);
     wide[32..].* = ra.x.toBytes(.big);
     const r = Scalar.fromBytes64(wide, .big);
     if (r.isZero()) return null;
-    wide = .{0} ** 64;
+    wide = @splat(0);
     wide[32..].* = msg;
     const z = Scalar.fromBytes64(wide, .big);
     const s = k.invert().mul(z.add(r.mul(d)));
@@ -325,7 +325,7 @@ pub const Secp256k1 = std.crypto.ecc.Secp256k1;
 pub const P256 = std.crypto.ecc.P256;
 
 pub fn scalarBE(v: u64) [32]u8 {
-    var b: [32]u8 = .{0} ** 32;
+    var b: [32]u8 = @splat(0);
     std.mem.writeInt(u64, b[24..32], v, .big);
     return b;
 }
@@ -388,12 +388,12 @@ test "secp256k1: negative cases agree with the reference" {
     try std.testing.expect(!K1Soft.recover(&c.msg, &c.sig, 3, &out));
     // r = 0, s = 0, r >= n, s >= n
     var z = c;
-    z.sig[0..32].* = .{0} ** 32;
+    z.sig[0..32].* = @splat(0);
     try expectSameK1(z);
     try std.testing.expect(!K1Soft.verify(&z.msg, &z.sig, &z.pubkey));
     try std.testing.expect(!K1Soft.recover(&z.msg, &z.sig, z.recid, &out));
     z = c;
-    z.sig[32..64].* = .{0} ** 32;
+    z.sig[32..64].* = @splat(0);
     try expectSameK1(z);
     try std.testing.expect(!K1Soft.verify(&z.msg, &z.sig, &z.pubkey));
     var n_be: [32]u8 = undefined;
@@ -404,7 +404,7 @@ test "secp256k1: negative cases agree with the reference" {
     try std.testing.expect(!K1Soft.verify(&z.msg, &z.sig, &z.pubkey));
     try std.testing.expect(!K1Soft.recover(&z.msg, &z.sig, z.recid, &out));
     z = c;
-    z.sig[32..64].* = .{0xff} ** 32; // s > n
+    z.sig[32..64].* = @splat(0xff); // s > n
     try expectSameK1(z);
     try std.testing.expect(!K1Soft.verify(&z.msg, &z.sig, &z.pubkey));
     // off-curve and non-canonical public keys
@@ -413,10 +413,10 @@ test "secp256k1: negative cases agree with the reference" {
     try expectSameK1(oc);
     try std.testing.expect(!K1Soft.verify(&oc.msg, &oc.sig, &oc.pubkey));
     oc = c;
-    oc.pubkey = .{0} ** 64; // identity encoding
+    oc.pubkey = @splat(0); // identity encoding
     try std.testing.expect(!K1Soft.verify(&oc.msg, &oc.sig, &oc.pubkey));
     oc = c;
-    oc.pubkey[0..32].* = .{0xff} ** 32; // x >= p
+    oc.pubkey[0..32].* = @splat(0xff); // x >= p
     try std.testing.expect(!K1Soft.verify(&oc.msg, &oc.sig, &oc.pubkey));
     // r with no curve point (x not on the curve): scan until the reference rejects it
     var found = false;
@@ -439,18 +439,18 @@ test "secp256r1: negative cases agree with the reference" {
     try expectSameR1(bad);
     try std.testing.expect(!R1Soft.verify(&bad.msg, &bad.sig, &bad.pubkey));
     var z = c;
-    z.sig[0..32].* = .{0} ** 32;
+    z.sig[0..32].* = @splat(0);
     try expectSameR1(z);
     try std.testing.expect(!R1Soft.verify(&z.msg, &z.sig, &z.pubkey));
     z = c;
-    z.sig[32..64].* = .{0xff} ** 32;
+    z.sig[32..64].* = @splat(0xff);
     try std.testing.expect(!R1Soft.verify(&z.msg, &z.sig, &z.pubkey));
     var oc = c;
     oc.pubkey[63] ^= 1;
     try expectSameR1(oc);
     try std.testing.expect(!R1Soft.verify(&oc.msg, &oc.sig, &oc.pubkey));
     oc = c;
-    oc.pubkey = .{0} ** 64;
+    oc.pubkey = @splat(0);
     try std.testing.expect(!R1Soft.verify(&oc.msg, &oc.sig, &oc.pubkey));
 }
 
@@ -462,7 +462,7 @@ test "edge cases: hash >= n, hash = 0, and keys that make the double-mul degener
     var st: u64 = 5;
     // msg = 0xff..ff (>= n) and msg = 0
     inline for (.{ Secp256k1, P256 }) |Curve| {
-        for ([_][32]u8{ .{0xff} ** 32, .{0} ** 32 }) |m| {
+        for ([_][32]u8{ @splat(0xff), @splat(0) }) |m| {
             var d: [32]u8 = undefined;
             var k: [32]u8 = undefined;
             fillRandom(&st, &d);

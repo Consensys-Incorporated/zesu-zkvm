@@ -11,8 +11,8 @@
 const std = @import("std");
 
 pub fn Soft(comptime n: usize, comptime mod: [n]u64) type {
-    const Int = std.meta.Int(.unsigned, n * 64);
-    const Wide = std.meta.Int(.unsigned, n * 128);
+    const Int = @Int(.unsigned, n * 64);
+    const Wide = @Int(.unsigned, n * 128);
     const p: Int = toInt(n, Int, mod);
     return struct {
         pub const limbs = n;

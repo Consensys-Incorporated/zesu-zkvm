@@ -48,7 +48,7 @@ inline fn nativeKeccakf(state: *[KECCAK_WIDTH]u8) void {
 }
 
 pub fn keccak256(data: []const u8, output: *[32]u8) void {
-    var state: [KECCAK_WIDTH]u8 align(8) = .{0} ** KECCAK_WIDTH;
+    var state: [KECCAK_WIDTH]u8 align(8) = @splat(0);
     // Aligned staging buffer for full-rate absorb blocks; handles unaligned input.
     var temp: [KECCAK_RATE]u8 align(8) = undefined;
 

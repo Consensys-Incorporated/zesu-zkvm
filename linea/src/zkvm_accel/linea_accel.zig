@@ -48,7 +48,7 @@ pub fn ecrecover(msg: *const [32]u8, sig: *const [64]u8, recid: u8, output: *[64
 
     // e = msg interpreted as a scalar (big-endian, reduced mod n).
     // fromBytes64 does wide reduction; we smuggle 32 bytes in the top half.
-    var e_wide: [64]u8 = .{0} ** 64;
+    var e_wide: [64]u8 = @splat(0);
     @memcpy(e_wide[32..64], msg);
     const e_bytes = scalar.Scalar.fromBytes64(e_wide, .big).toBytes(.big);
 
@@ -96,7 +96,7 @@ fn verifyInner(msg: *const [32]u8, sig: *const [64]u8, pubkey: *const [64]u8) !b
     if (r_scalar.isZero() or s_scalar.isZero()) return false;
 
     // e = hash as scalar.
-    var e_wide: [64]u8 = .{0} ** 64;
+    var e_wide: [64]u8 = @splat(0);
     @memcpy(e_wide[32..64], msg);
     const e_bytes = scalar.Scalar.fromBytes64(e_wide, .big).toBytes(.big);
 
@@ -113,7 +113,7 @@ fn verifyInner(msg: *const [32]u8, sig: *const [64]u8, pubkey: *const [64]u8) !b
     // R.x lives in F_p; p > n for secp256k1, so R.x may be >= n.
     // Reduce mod n via fromBytes64 wide reduction instead of fromBytes, which
     // rejects non-canonical (>= n) values and would falsely return false.
-    var rx_wide: [64]u8 = .{0} ** 64;
+    var rx_wide: [64]u8 = @splat(0);
     @memcpy(rx_wide[32..64], &affine.x.toBytes(.big));
     const rx = scalar.Scalar.fromBytes64(rx_wide, .big);
     return rx.equivalent(r_scalar);
@@ -123,7 +123,7 @@ fn verifyInner(msg: *const [32]u8, sig: *const [64]u8, pubkey: *const [64]u8) !b
 
 pub fn ripemd160(data: []const u8, output: *[32]u8) void {
     _ = data;
-    output.* = .{0} ** 32;
+    output.* = @splat(0);
 }
 
 pub fn modexp(base: []const u8, exp: []const u8, modulus: []const u8, output: []u8) bool {

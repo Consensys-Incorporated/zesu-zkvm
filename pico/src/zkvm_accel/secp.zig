@@ -166,7 +166,7 @@ pub fn selfTest() bool {
         fillRandom(&st, &k);
         k[0] &= 0x7f;
         for ([_][32]u8{ scalarBE(1), n_minus_1 }) |d| {
-            for ([_][32]u8{ .{0xff} ** 32, .{0x11} ** 32 }) |m| {
+            for ([_][32]u8{ @splat(0xff), @splat(0x11) }) |m| {
                 if (signStd(Secp256k1, d, k, m)) |c| {
                     if (!verifyK1(&c.msg, &c.sig, &c.pubkey)) ok = false;
                     var o: [64]u8 = undefined;

@@ -29,8 +29,8 @@ const R_LE: Fe align(8) = .{
     0x29, 0xa0, 0x31, 0xe1, 0x72, 0x4e, 0x64, 0x30,
 };
 
-const ZERO: Fe align(8) = .{0} ** 32;
-const ONE: Fe align(8) = .{1} ++ .{0} ** 31;
+const ZERO: Fe align(8) = @splat(0);
+const ONE: Fe align(8) = [1]u8{1} ++ @as([31]u8, @splat(0));
 
 // EC setup payload: [field_prime_le || curve_a_le]  (a=0 for BN254 G1: y²=x³+3)
 const EC_SETUP_P1: [64]u8 align(8) = P_LE ++ ZERO;
@@ -226,7 +226,7 @@ fn isOnCurveOrIdentity(x_le: *const Fe, y_le: *const Fe) bool {
     var x3: Fe align(8) = undefined;
     var y2: Fe align(8) = undefined;
     var rhs: Fe align(8) = undefined;
-    const THREE_LE: Fe align(8) = .{3} ++ .{0} ** 31;
+    const THREE_LE: Fe align(8) = [1]u8{3} ++ @as([31]u8, @splat(0));
     mulModP(&y2, y_le, y_le);
     mulModP(&x2, x_le, x_le);
     mulModP(&x3, &x2, x_le);
@@ -439,7 +439,7 @@ fn g2PointAddInPlace(a: *[128]u8, b: *const [128]u8) void {
 
 /// EIP-197 requires G2 points in the r-order subgroup: [r]Q = O.
 fn g2InSubgroup(q: *const [128]u8) bool {
-    var result: [128]u8 align(8) = .{0} ** 128;
+    var result: [128]u8 align(8) = @splat(0);
     var cur: [128]u8 align(8) = q.*;
     for (0..256) |i| {
         if ((R_LE[i / 8] >> @intCast(i % 8)) & 1 == 1) g2PointAddInPlace(&result, &cur);

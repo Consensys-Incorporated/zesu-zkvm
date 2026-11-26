@@ -399,10 +399,10 @@ test "tower with native Fp2 ops agrees with the Fp-built Fp2" {
     const N = Tower(SoftWithFp2(4, BN_P), 9, 1);
     const a = sampleFp12(A, 11);
     const b = sampleFp12(A, 12);
-    const an: N.Fp12 = @bitCast(a);
-    const bn: N.Fp12 = @bitCast(b);
+    const an = @as(*const N.Fp12, @ptrCast(&a)).*;
+    const bn = @as(*const N.Fp12, @ptrCast(&b)).*;
     const ra = A.Fp12.mul(a, b);
     const rn = N.Fp12.mul(an, bn);
-    try std.testing.expectEqual(ra, @as(A.Fp12, @bitCast(rn)));
+    try std.testing.expectEqual(ra, @as(*const A.Fp12, @ptrCast(&rn)).*);
     try towerTests(N);
 }

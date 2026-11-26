@@ -55,7 +55,7 @@ const BLS_X_ABS: u64 = 0xd201000000010000;
 /// (p^4 - p^2 + 1) / r, the hard part of the final exponentiation (1270 bits -> 20 limbs).
 const HARD_EXP: [20]u64 = blk: {
     @setEvalBranchQuota(1_000_000);
-    const W = std.meta.Int(.unsigned, 1600);
+    const W = @Int(.unsigned, 1600);
     var p: W = 0;
     var i: usize = 6;
     while (i > 0) {
@@ -501,7 +501,7 @@ pub fn Impl(comptime B: type) type {
             return @bitCast(bytes.*);
         }
         fn fe2Le(comptime bytes: *const [96]u8) Fp2 {
-            return @bitCast(bytes.*);
+            return .{ .c0 = feLe(bytes[0..48]), .c1 = feLe(bytes[48..96]) };
         }
         fn limbsLe(comptime n: usize, comptime bytes: *const [8 * n]u8) [n]u64 {
             return @bitCast(bytes.*);
@@ -801,7 +801,7 @@ pub fn runVector(comptime I: type, comptime kind: Kind, input_hex_raw: []const u
             var verified = false;
             ok = I.pairing(pairs[0..n], &verified);
             if (ok) {
-                out128[0..31].* = .{0} ** 31;
+                out128[0..31].* = @splat(0);
                 out128[31] = @intFromBool(verified);
                 produced = out128[0..32];
             }
@@ -915,7 +915,7 @@ fn FastSoft(comptime n: usize, comptime mod: [n]u64) type {
     };
     const r2: [n]u64 = blk: {
         // 2^(2*64*n) mod p by repeated doubling of 1
-        const W = std.meta.Int(.unsigned, n * 64 + 1);
+        const W = @Int(.unsigned, n * 64 + 1);
         var pm: W = 0;
         var i: usize = n;
         while (i > 0) {
@@ -959,7 +959,7 @@ fn FastSoft(comptime n: usize, comptime mod: [n]u64) type {
         }
 
         fn montmul(a: [n]u64, b: [n]u64) [n]u64 {
-            var t: [n + 2]u64 = .{0} ** (n + 2);
+            var t: [n + 2]u64 = @splat(0);
             for (0..n) |i| {
                 var carry: u64 = 0;
                 for (0..n) |j| {
@@ -1083,7 +1083,7 @@ test "FastSoft pairing equals the slow backend's" {
     const g2 = SwSlow.g2FromBE(&G2_GEN_BE).?;
     const slow = SwSlow.pair(g1, g2);
     const fast = Sw.pair(Sw.g1FromBE(&G1_GEN_BE).?, Sw.g2FromBE(&G2_GEN_BE).?);
-    try std.testing.expectEqual(slow, @as(SwSlow.Fp12, @bitCast(fast)));
+    try std.testing.expectEqual(slow, @as(*const SwSlow.Fp12, @ptrCast(&fast)).*);
 }
 
 fn expectFp12Eq(a: Sw.Fp12, b: Sw.Fp12) !void {
@@ -1185,7 +1185,7 @@ fn csvSuite(comptime kind: Kind, comptime csv: []const u8, comptime stride_in_de
         const line = std.mem.trimEnd(u8, raw, "\r");
         row += 1;
         if (row == 1 or line.len == 0) continue;
-        if (builtin.mode == .Debug and row % stride_in_debug != 0) continue;
+        if (std.debug.runtime_safety and row % stride_in_debug != 0) continue;
         // input,result,gas,notes
         var f: [4][]const u8 = .{ "", "", "", "" };
         var idx: usize = 0;

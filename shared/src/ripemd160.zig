@@ -141,7 +141,7 @@ pub fn ripemd160(data: []const u8, output: *[32]u8) void {
 
     const msg_bit_len: u64 = @as(u64, data.len) * 8;
     const remaining = data.len - offset;
-    var pad: [128]u8 = .{0} ** 128;
+    var pad: [128]u8 = @splat(0);
     @memcpy(pad[0..remaining], data[offset..]);
     pad[remaining] = 0x80;
 
@@ -169,9 +169,9 @@ test "ripemd160 writes the digest right-aligned" {
         .{ .in = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", .digest = "12a053384a9c0c88e405a06c27dcf49ada62eb2b" },
     };
     for (vectors) |v| {
-        var expected: [32]u8 = .{0} ** 32;
+        var expected: [32]u8 = @splat(0);
         _ = try std.fmt.hexToBytes(expected[12..], v.digest);
-        var got: [32]u8 = .{0xaa} ** 32;
+        var got: [32]u8 = @splat(0xaa);
         ripemd160(v.in, &got);
         try std.testing.expectEqualSlices(u8, &expected, &got);
     }

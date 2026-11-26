@@ -131,7 +131,8 @@ pub fn build(b: *std.Build) void {
         run_step.dependOn(&b.addFail("`zig build run` needs a block: zig build run -Dinput=../vectors/mainnet_fusaka_24758573.bin").step);
     }
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
+    // Zig 0.17 replaced `b.args` with `addPassthruArgs`.
+    if (comptime @hasDecl(std.Build.Step.Run, "addPassthruArgs")) run_cmd.addPassthruArgs() else if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);
 
     // The native unit tests of the curve code live with the code, in ../shared (`make -C ../shared test`).
