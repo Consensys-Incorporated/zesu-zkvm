@@ -27,7 +27,7 @@ inline fn keccakf(state: *align(8) [KECCAK_WIDTH]u8) void {
 }
 
 pub fn keccak256(data: []const u8, output: *[32]u8) void {
-    var state: [KECCAK_WIDTH]u8 align(8) = .{0} ** KECCAK_WIDTH;
+    var state: [KECCAK_WIDTH]u8 align(8) = @splat(0);
 
     var remaining = data;
     while (remaining.len >= KECCAK_RATE) {

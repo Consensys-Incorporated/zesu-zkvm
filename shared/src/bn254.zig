@@ -96,7 +96,7 @@ pub fn Impl(comptime B: type) type {
         }
 
         pub fn encodeG1(p: G1) [64]u8 {
-            var out: [64]u8 = .{0} ** 64;
+            var out: [64]u8 = @splat(0);
             if (p.inf) return out;
             out[0..32].* = Fp.toBytesBE(p.x);
             out[32..64].* = Fp.toBytesBE(p.y);
@@ -440,7 +440,7 @@ const g2_gen = S.G2{
 };
 
 fn encG2(q: S.G2) [128]u8 {
-    var out: [128]u8 = .{0} ** 128;
+    var out: [128]u8 = @splat(0);
     if (q.inf) return out;
     out[0..32].* = S.Types.Fp_.toBytesBE(q.x.c1);
     out[32..64].* = S.Types.Fp_.toBytesBE(q.x.c0);
@@ -581,11 +581,11 @@ const SFp = struct {
 
 test "bn254 invalid inputs are rejected" {
     // G1: not on the curve, coordinate >= p
-    var bad_g1: [64]u8 = .{0} ** 64;
+    var bad_g1: [64]u8 = @splat(0);
     bad_g1[31] = 1;
     bad_g1[63] = 3; // (1, 3) is not on y² = x³ + 3
     try std.testing.expect(S.decodeG1(&bad_g1) == null);
-    var big: [64]u8 = .{0xff} ** 64;
+    var big: [64]u8 = @splat(0xff);
     try std.testing.expect(S.decodeG1(&big) == null);
     var res: [64]u8 = undefined;
     try std.testing.expect(!S.g1AddBytes(&bad_g1, &bad_g1, &res));

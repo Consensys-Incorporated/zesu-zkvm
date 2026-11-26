@@ -88,7 +88,8 @@ pub fn build(b: *std.Build) void {
     const run_cmd = b.addSystemCommand(&.{ "ziskemu", "-e" });
     run_cmd.addArtifactArg(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
+    // Zig 0.17 replaced `b.args` with `addPassthruArgs`.
+    if (comptime @hasDecl(std.Build.Step.Run, "addPassthruArgs")) run_cmd.addPassthruArgs() else if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);
 
     // Placeholder test step
@@ -104,4 +105,9 @@ fn guestFeatures(zisk: bool) GuestObjectArg {
     return .{ .dma = zisk, .jump_dest = zisk, .arith256_mod = zisk };
 }
 
-const GuestObjectArg = @typeInfo(@TypeOf(zesu_build.addGuestObject)).@"fn".params[3].type.?;
+const add_guest_object = @typeInfo(@TypeOf(zesu_build.addGuestObject)).@"fn";
+// Zig 0.17 reflects parameters as `param_types`, 0.16 as `params`.
+const GuestObjectArg = if (@hasField(@TypeOf(add_guest_object), "param_types"))
+    add_guest_object.param_types[3].?
+else
+    add_guest_object.params[3].type.?;

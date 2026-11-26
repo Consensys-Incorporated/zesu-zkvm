@@ -7,7 +7,7 @@ const std = @import("std");
 const sys = @import("pico_sys");
 
 /// Public-values staging buffer (the SSZ result is 43 bytes).
-var pv_buf: [1024]u8 align(8) = .{0} ** 1024;
+var pv_buf: [1024]u8 align(8) = @splat(0);
 var pv_len: usize = 0;
 
 /// Print a UTF-8 string to the host stdout (fd 1).

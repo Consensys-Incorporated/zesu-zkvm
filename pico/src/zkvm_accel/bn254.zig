@@ -90,7 +90,7 @@ pub fn selfTest() bool {
     dbg("bn254: G1 precompiles vs formulas\n");
     // BN254_ADD / BN254_DOUBLE vs the affine formulas, on a non-trivial multiple of the generator
     const Soft = Impl(GuestFpOnly);
-    var gen: [64]u8 = .{0} ** 64;
+    var gen: [64]u8 = @splat(0);
     gen[31] = 1;
     gen[63] = 2;
     var k: [32]u8 = undefined;

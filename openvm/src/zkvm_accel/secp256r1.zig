@@ -80,8 +80,8 @@ const GY_LE: Fe align(8) = .{
     0x9b, 0x7f, 0x1a, 0xfe, 0xe2, 0x42, 0xe3, 0x4f,
 };
 
-const ZERO: Fe align(8) = .{0} ** 32;
-const ONE: Fe align(8) = .{1} ++ (.{0} ** 31);
+const ZERO: Fe align(8) = @splat(0);
+const ONE: Fe align(8) = [1]u8{1} ++ @as([31]u8, @splat(0));
 
 const G_BUF: [64]u8 align(8) = GX_LE ++ GY_LE;
 

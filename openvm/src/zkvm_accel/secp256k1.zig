@@ -54,9 +54,9 @@ const GY_LE: Fe align(8) = .{
     0x65, 0xc4, 0xa3, 0x26, 0x77, 0xda, 0x3a, 0x48,
 };
 
-const ZERO: Fe align(8) = .{0} ** 32;
-const ONE: Fe align(8) = .{1} ++ (.{0} ** 31);
-const SEVEN: Fe align(8) = .{7} ++ (.{0} ** 31);
+const ZERO: Fe align(8) = @splat(0);
+const ONE: Fe align(8) = [1]u8{1} ++ @as([31]u8, @splat(0));
+const SEVEN: Fe align(8) = [1]u8{7} ++ @as([31]u8, @splat(0));
 
 const G_BUF: [64]u8 align(8) = GX_LE ++ GY_LE;
 

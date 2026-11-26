@@ -10,7 +10,7 @@ pub fn Field(comptime B: type) type {
         pub const N = B.limbs;
         pub const BYTES = N * 8;
         pub const Fe = [N]u64;
-        pub const zero: Fe = .{0} ** N;
+        pub const zero: Fe = @splat(0);
         pub const one: Fe = blk: {
             var o: Fe = zero;
             o[0] = 1;
